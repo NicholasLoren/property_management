@@ -52,7 +52,9 @@ class ProfileController extends Controller
 
         Auth::logout();
 
-        $user->delete();
+        // Deleting your own account is permanent, unlike the admin-managed
+        // trash for other users.
+        $user->forceDelete();
 
         $request->session()->invalidate();
         $request->session()->regenerateToken();

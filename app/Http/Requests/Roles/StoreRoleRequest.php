@@ -1,0 +1,28 @@
+<?php
+
+namespace App\Http\Requests\Roles;
+
+use App\Models\Permission;
+use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
+
+class StoreRoleRequest extends FormRequest
+{
+    public function authorize(): bool
+    {
+        return true;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function rules(): array
+    {
+        return [
+            'name' => ['required', 'string', 'max:255', Rule::unique('roles', 'name')],
+            'description' => ['nullable', 'string', 'max:1000'],
+            'permissions' => ['array'],
+            'permissions.*' => ['integer', Rule::exists(Permission::class, 'id')],
+        ];
+    }
+}
