@@ -197,7 +197,7 @@ export default function UnitsIndex({
                 <Input
                     value={search}
                     onChange={(e) => onSearchChange(e.target.value)}
-                    placeholder="Search units…"
+                    placeholder="Search by name or code…"
                     className="pl-9"
                 />
             </div>

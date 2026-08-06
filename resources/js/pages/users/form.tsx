@@ -237,6 +237,7 @@ export default function UserForm({
                                         )
                                     }
                                     placeholder="Anything else worth noting about this landlord"
+                                    maxLength={2000}
                                 />
                                 <InputError message={errors.landlord_notes} />
                             </div>

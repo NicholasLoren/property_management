@@ -11,6 +11,7 @@ use App\Models\Amenity;
 use App\Models\Property;
 use App\Models\Unit;
 use App\Models\User;
+use App\Services\CodeGenerator;
 use App\Settings\BrandingSettings;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Database\Eloquent\Builder;
@@ -24,6 +25,8 @@ use Symfony\Component\HttpFoundation\Response as HttpResponse;
 
 class PropertyController extends Controller
 {
+    public function __construct(private readonly CodeGenerator $codes) {}
+
     public function index(Request $request): Response
     {
         $filters = $this->parseFilters($request);
@@ -129,7 +132,8 @@ class PropertyController extends Controller
 
         if ($filters['search'] !== '') {
             $query->where(fn ($q) => $q->where('name', 'like', "%{$filters['search']}%")
-                ->orWhere('address', 'like', "%{$filters['search']}%"));
+                ->orWhere('address', 'like', "%{$filters['search']}%")
+                ->orWhere('code', 'like', "%{$filters['search']}%"));
         }
 
         if ($filters['tab'] !== 'trash') {
@@ -157,6 +161,7 @@ class PropertyController extends Controller
     public function store(StorePropertyRequest $request): RedirectResponse
     {
         $property = Property::create([
+            'code' => $this->codes->generate('property'),
             'landlord_id' => $request->validated('landlord_id'),
             'name' => $request->validated('name'),
             'type' => $request->validated('type'),
@@ -165,6 +170,10 @@ class PropertyController extends Controller
             'longitude' => $request->validated('longitude'),
             'description' => $request->validated('description'),
         ]);
+
+        if ($this->codes->usesId('property')) {
+            $property->forceFill(['code' => $this->codes->generate('property', $property)])->save();
+        }
 
         $property->amenities()->sync($request->validated('amenity_ids', []));
         $this->syncPhotos($request, $property);
@@ -279,6 +288,7 @@ class PropertyController extends Controller
 
         $data = [
             'id' => $property->id,
+            'code' => $property->code,
             'name' => $property->name,
             'type' => $property->type->value,
             'type_label' => $property->type->label(),
@@ -332,6 +342,7 @@ class PropertyController extends Controller
 
         return [
             'id' => $property->id,
+            'code' => $property->code,
             'name' => $property->name,
             'type' => $property->type->value,
             'type_label' => $property->type->label(),

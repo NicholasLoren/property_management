@@ -7,6 +7,7 @@ export type UnitCurrentPrice = {
 
 export type UnitRow = {
     id: number;
+    code: string | null;
     name: string;
     unit_type_label: string | null;
     size: string | null;

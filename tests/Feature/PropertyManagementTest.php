@@ -130,6 +130,10 @@ class PropertyManagementTest extends TestCase
         $this->assertCount(2, $property->amenities);
         $this->assertCount(1, $property->units);
         $this->assertSame('Ntinda House', $property->units->first()->name);
+        $this->assertNotNull($property->code);
+        $this->assertStringStartsWith('PROP-', $property->code);
+        $this->assertNotNull($property->units->first()->code);
+        $this->assertStringStartsWith('UNIT-', $property->units->first()->code);
     }
 
     public function test_property_coordinates_are_optional_and_bounded(): void

@@ -67,6 +67,45 @@ class PermissionSeeder extends Seeder
             'landlords' => [
                 ['name' => 'landlords.view', 'label' => 'View landlords'],
             ],
+            'maintenance' => [
+                ['name' => 'maintenance.view', 'label' => 'View maintenance requests'],
+                ['name' => 'maintenance.add', 'label' => 'Add maintenance requests'],
+                ['name' => 'maintenance.edit', 'label' => 'Edit maintenance requests'],
+                ['name' => 'maintenance.delete', 'label' => 'Delete maintenance requests'],
+            ],
+            'payments' => [
+                ['name' => 'payments.view', 'label' => 'View payments'],
+                ['name' => 'payments.add', 'label' => 'Record payments'],
+                ['name' => 'payments.edit', 'label' => 'Edit payments'],
+                ['name' => 'payments.delete', 'label' => 'Delete payments'],
+            ],
+            'expenses' => [
+                ['name' => 'expenses.view', 'label' => 'View expenses'],
+                ['name' => 'expenses.add', 'label' => 'Add expenses'],
+                ['name' => 'expenses.edit', 'label' => 'Edit expenses'],
+                ['name' => 'expenses.delete', 'label' => 'Delete expenses'],
+            ],
+            'incomes' => [
+                ['name' => 'incomes.view', 'label' => 'View income'],
+                ['name' => 'incomes.add', 'label' => 'Add income'],
+                ['name' => 'incomes.edit', 'label' => 'Edit income'],
+                ['name' => 'incomes.delete', 'label' => 'Delete income'],
+            ],
+            'documents' => [
+                ['name' => 'documents.view', 'label' => 'View documents'],
+                ['name' => 'documents.add', 'label' => 'Add documents'],
+                ['name' => 'documents.edit', 'label' => 'Edit documents'],
+                ['name' => 'documents.delete', 'label' => 'Delete documents'],
+            ],
+            'reports' => [
+                ['name' => 'reports.view', 'label' => 'View reports'],
+            ],
+            'extras' => [
+                ['name' => 'extras.view', 'label' => 'View extras (categories, features, unit types)'],
+                ['name' => 'extras.add', 'label' => 'Add extras'],
+                ['name' => 'extras.edit', 'label' => 'Edit extras'],
+                ['name' => 'extras.delete', 'label' => 'Delete extras'],
+            ],
         ];
 
         foreach ($catalog as $categoryName => $permissions) {

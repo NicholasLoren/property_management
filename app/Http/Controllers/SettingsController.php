@@ -4,12 +4,14 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\Settings\TestSmsRequest;
 use App\Http\Requests\Settings\UpdateBrandingSettingsRequest;
+use App\Http\Requests\Settings\UpdateCodesSettingsRequest;
 use App\Http\Requests\Settings\UpdateGeneralSettingsRequest;
 use App\Http\Requests\Settings\UpdateNotificationSettingsRequest;
 use App\Http\Requests\Settings\UpdateSmsSettingsRequest;
 use App\Models\CompanyProfile;
 use App\Services\AfricasTalkingSmsService;
 use App\Settings\BrandingSettings;
+use App\Settings\CodesSettings;
 use App\Settings\GeneralSettings;
 use App\Settings\NotificationSettings;
 use App\Settings\SmsSettings;
@@ -25,6 +27,7 @@ class SettingsController extends Controller
         BrandingSettings $branding,
         SmsSettings $sms,
         NotificationSettings $notifications,
+        CodesSettings $codes,
     ): Response {
         $profile = CompanyProfile::current();
         $logo = $profile->getFirstMedia('logo');
@@ -46,6 +49,7 @@ class SettingsController extends Controller
                 'has_api_key' => $sms->africastalking_api_key !== '',
             ],
             'notifications' => $notifications->toArray(),
+            'codes' => $codes->toArray(),
         ]);
     }
 
@@ -123,6 +127,18 @@ class SettingsController extends Controller
         activity()->useLog('settings')->causedBy($request->user())->log('Updated notification settings.');
 
         Inertia::flash('toast', ['type' => 'success', 'message' => 'Notification settings saved.']);
+
+        return back();
+    }
+
+    public function updateCodes(UpdateCodesSettingsRequest $request, CodesSettings $settings): RedirectResponse
+    {
+        $settings->fill($request->validated());
+        $settings->save();
+
+        activity()->useLog('settings')->causedBy($request->user())->log('Updated code format settings.');
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => 'Code formats saved.']);
 
         return back();
     }

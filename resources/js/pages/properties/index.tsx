@@ -227,7 +227,7 @@ export default function PropertiesIndex({
                 <Input
                     value={search}
                     onChange={(e) => onSearchChange(e.target.value)}
-                    placeholder="Search properties…"
+                    placeholder="Search by name, address, or code…"
                     className="pl-9"
                 />
             </div>

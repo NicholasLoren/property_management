@@ -11,6 +11,7 @@ use App\Models\Unit;
 use App\Models\UnitFeature;
 use App\Models\UnitPrice;
 use App\Models\UnitType;
+use App\Services\CodeGenerator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Http\RedirectResponse;
@@ -21,6 +22,8 @@ use Spatie\MediaLibrary\MediaCollections\Models\Media;
 
 class UnitController extends Controller
 {
+    public function __construct(private readonly CodeGenerator $codes) {}
+
     public function index(Request $request, Property $property): Response
     {
         $filters = $this->parseFilters($request);
@@ -92,6 +95,7 @@ class UnitController extends Controller
 
         if ($filters['search'] !== '') {
             $query->where(fn (Builder $q) => $q->where('name', 'like', "%{$filters['search']}%")
+                ->orWhere('code', 'like', "%{$filters['search']}%")
                 ->orWhereHas('property', fn (Builder $p) => $p->where('name', 'like', "%{$filters['search']}%")));
         }
 
@@ -180,7 +184,8 @@ class UnitController extends Controller
         $query->with('unitType')->withCount('features');
 
         if ($filters['search'] !== '') {
-            $query->where('name', 'like', "%{$filters['search']}%");
+            $query->where(fn (Builder $q) => $q->where('name', 'like', "%{$filters['search']}%")
+                ->orWhere('code', 'like', "%{$filters['search']}%"));
         }
 
         if ($filters['tab'] !== 'trash' && $filters['statuses'] !== []) {
@@ -204,11 +209,16 @@ class UnitController extends Controller
     public function store(StoreUnitRequest $request, Property $property): RedirectResponse
     {
         $unit = $property->units()->create([
+            'code' => $this->codes->generate('unit'),
             'unit_type_id' => $request->validated('unit_type_id'),
             'name' => $request->validated('name'),
             'size' => $request->validated('size'),
             'status' => $request->validated('status'),
         ]);
+
+        if ($this->codes->usesId('unit')) {
+            $unit->forceFill(['code' => $this->codes->generate('unit', $unit)])->save();
+        }
 
         $this->syncFeatures($request, $unit);
         $this->syncPrice($request, $unit);
@@ -355,6 +365,7 @@ class UnitController extends Controller
 
         $data = [
             'id' => $unit->id,
+            'code' => $unit->code,
             'name' => $unit->name,
             'unit_type_label' => $unit->unitType?->label,
             'size' => $unit->size,
@@ -418,6 +429,7 @@ class UnitController extends Controller
     {
         return [
             'id' => $unit->id,
+            'code' => $unit->code,
             'name' => $unit->name,
             'unit_type_label' => $unit->unitType?->label,
             'size' => $unit->size,

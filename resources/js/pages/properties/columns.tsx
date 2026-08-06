@@ -54,7 +54,14 @@ function PropertyIdentityCell({ property }: { property: PropertyRow }) {
                 </span>
             )}
             <div>
-                <div className="text-[13px] font-semibold">{property.name}</div>
+                <div className="flex items-center gap-1.5 text-[13px] font-semibold">
+                    {property.name}
+                    {property.code && (
+                        <span className="rounded bg-secondary px-1 py-px font-mono text-[10.5px] font-normal text-text-tertiary">
+                            {property.code}
+                        </span>
+                    )}
+                </div>
                 <div className="text-xs text-text-tertiary">
                     {property.address}
                 </div>

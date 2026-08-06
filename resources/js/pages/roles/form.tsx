@@ -11,7 +11,6 @@ import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
 import { Textarea } from '@/components/ui/textarea';
 import { useInertiaZodForm } from '@/hooks/use-inertia-zod-form';
-import { cn } from '@/lib/utils';
 import roles from '@/routes/roles';
 import { ROLE_DESCRIPTION_MAX_LENGTH, roleSchema } from '@/schemas/role';
 import type { PermissionCategoryOption, RoleRow } from '@/types/roles';
@@ -55,10 +54,6 @@ export default function RoleForm({ role, permissionCategories }: PageProps) {
     function toggleAllPermissions() {
         setField('permissions', allPermissionsSelected ? [] : allPermissionIds);
     }
-
-    const descriptionLength = data.description?.length ?? 0;
-    const descriptionNearLimit =
-        descriptionLength >= ROLE_DESCRIPTION_MAX_LENGTH * 0.9;
 
     function handleSubmit(e: FormEvent) {
         e.preventDefault();
@@ -121,27 +116,12 @@ export default function RoleForm({ role, permissionCategories }: PageProps) {
                     </div>
 
                     <div className="grid gap-1.5">
-                        <div className="flex items-baseline justify-between">
-                            <Label htmlFor="description">
-                                Description{' '}
-                                <span className="font-normal text-text-tertiary">
-                                    (optional)
-                                </span>
-                            </Label>
-                            <span
-                                className={cn(
-                                    'text-xs text-text-tertiary tabular-nums',
-                                    descriptionNearLimit &&
-                                        'font-medium text-warning',
-                                    descriptionLength >=
-                                        ROLE_DESCRIPTION_MAX_LENGTH &&
-                                        'text-destructive',
-                                )}
-                            >
-                                {descriptionLength} /{' '}
-                                {ROLE_DESCRIPTION_MAX_LENGTH}
+                        <Label htmlFor="description">
+                            Description{' '}
+                            <span className="font-normal text-text-tertiary">
+                                (optional)
                             </span>
-                        </div>
+                        </Label>
                         <Textarea
                             id="description"
                             disabled={isSystem}

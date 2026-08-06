@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
 use Spatie\Activitylog\Models\Concerns\LogsActivity;
@@ -26,6 +27,7 @@ use Spatie\MediaLibrary\InteractsWithMedia;
  * Unit, never forked between Property and Unit.
  *
  * @property int $id
+ * @property string|null $code
  * @property int $landlord_id
  * @property string $name
  * @property PropertyType $type
@@ -39,7 +41,7 @@ use Spatie\MediaLibrary\InteractsWithMedia;
  * @property Carbon|null $updated_at
  * @property-read int|null $units_count
  */
-#[Fillable(['landlord_id', 'name', 'type', 'address', 'latitude', 'longitude', 'description'])]
+#[Fillable(['code', 'landlord_id', 'name', 'type', 'address', 'latitude', 'longitude', 'description'])]
 #[ObservedBy(PropertyObserver::class)]
 class Property extends Model implements HasMedia
 {
@@ -106,5 +108,21 @@ class Property extends Model implements HasMedia
     public function units(): HasMany
     {
         return $this->hasMany(Unit::class);
+    }
+
+    /**
+     * @return HasMany<Transaction, $this>
+     */
+    public function transactions(): HasMany
+    {
+        return $this->hasMany(Transaction::class);
+    }
+
+    /**
+     * @return MorphMany<Document, $this>
+     */
+    public function documents(): MorphMany
+    {
+        return $this->morphMany(Document::class, 'documentable');
     }
 }

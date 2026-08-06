@@ -22,6 +22,7 @@ class DatabaseSeeder extends Seeder
             AmenitySeeder::class,
             UnitTypeSeeder::class,
             UnitFeatureSeeder::class,
+            CategorySeeder::class,
         ]);
     }
 }

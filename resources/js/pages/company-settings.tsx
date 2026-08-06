@@ -1,5 +1,12 @@
 import { Head, Link, usePage } from '@inertiajs/react';
-import { Bell, Building2, Folder, MessageSquare, Trash2 } from 'lucide-react';
+import {
+    Bell,
+    Building2,
+    Folder,
+    Hash,
+    MessageSquare,
+    Trash2,
+} from 'lucide-react';
 import { useState } from 'react';
 import type { ComponentType, FormEvent } from 'react';
 import InputError from '@/components/input-error';
@@ -23,13 +30,20 @@ import { cn } from '@/lib/utils';
 import companySettings from '@/routes/company-settings';
 import {
     brandingSettingsSchema,
+    codesSettingsSchema,
     generalSettingsSchema,
     notificationSettingsSchema,
     smsSettingsSchema,
     testSmsSchema,
 } from '@/schemas/settings';
 
-type SectionKey = 'general' | 'branding' | 'sms' | 'notifications' | 'trash';
+type SectionKey =
+    | 'general'
+    | 'branding'
+    | 'sms'
+    | 'notifications'
+    | 'codes'
+    | 'trash';
 
 const SECTIONS: {
     key: SectionKey;
@@ -40,6 +54,7 @@ const SECTIONS: {
     { key: 'branding', label: 'Branding & exports', icon: Folder },
     { key: 'sms', label: 'SMS', icon: MessageSquare },
     { key: 'notifications', label: 'Notifications', icon: Bell },
+    { key: 'codes', label: 'Codes', icon: Hash },
     { key: 'trash', label: 'Trash & data', icon: Trash2 },
 ];
 
@@ -73,6 +88,18 @@ type PageProps = {
         email_enabled: boolean;
         sms_enabled: boolean;
     };
+    codes: {
+        property_prefix: string;
+        property_template: string;
+        unit_prefix: string;
+        unit_template: string;
+        document_prefix: string;
+        document_template: string;
+        expense_prefix: string;
+        expense_template: string;
+        income_prefix: string;
+        income_template: string;
+    };
 };
 
 export default function CompanySettings({
@@ -81,6 +108,7 @@ export default function CompanySettings({
     branding,
     sms,
     notifications,
+    codes,
 }: PageProps) {
     return (
         <>
@@ -134,6 +162,7 @@ export default function CompanySettings({
                     {section === 'notifications' && (
                         <NotificationsSection notifications={notifications} />
                     )}
+                    {section === 'codes' && <CodesSection codes={codes} />}
                     {section === 'trash' && <TrashSection general={general} />}
                 </div>
             </div>
@@ -629,6 +658,171 @@ function NotificationsSection({
                         }
                     />
                 </SettingsRow>
+            </SettingsCard>
+
+            <div className="flex justify-end">
+                <Button type="submit" disabled={processing}>
+                    {processing && <Spinner />}
+                    Save
+                </Button>
+            </div>
+        </form>
+    );
+}
+
+const CODE_TYPES: { key: string; label: string; example: string }[] = [
+    { key: 'property', label: 'Properties', example: 'e.g. Kisementi Apartments' },
+    { key: 'unit', label: 'Units', example: 'e.g. Unit 4B' },
+    { key: 'document', label: 'Documents', example: 'e.g. Fire safety certificate' },
+    { key: 'expense', label: 'Expenses', example: 'e.g. Water bill' },
+    { key: 'income', label: 'Income', example: 'e.g. Parking fee' },
+];
+
+/**
+ * Rough client-side stand-in for App\Services\CodeGenerator::generate() —
+ * good enough for a live "what would this look like" preview, not meant to
+ * byte-for-byte match the server (real sequence numbers and PHP date()
+ * formatting live there).
+ */
+function previewCode(prefix: string, template: string): string {
+    return template.replace(
+        /\{([a-z]+)(?::([^}]+))?\}/gi,
+        (whole: string, token: string, arg?: string) => {
+            switch (token.toLowerCase()) {
+                case 'prefix':
+                    return prefix || 'PREFIX';
+                case 'seq':
+                    return '1'.padStart(arg ? Number(arg) || 4 : 4, '0');
+                case 'date': {
+                    const now = new Date();
+
+                    if (arg === 'Ymd') {
+                        return `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
+                    }
+
+                    return String(now.getFullYear());
+                }
+                case 'id':
+                    return '42';
+                default:
+                    return whole;
+            }
+        },
+    );
+}
+
+function CodesSection({ codes }: { codes: PageProps['codes'] }) {
+    const { data, setField, errors, processing, submit } = useInertiaZodForm(
+        codesSettingsSchema,
+        codes,
+    );
+
+    function handleSubmit(e: FormEvent) {
+        e.preventDefault();
+        submit('patch', companySettings.updateCodes().url);
+    }
+
+    return (
+        <form onSubmit={handleSubmit} noValidate>
+            <SettingsCard
+                title="Code formats"
+                description="Every Property, Unit, Document, Expense, and Income record gets a unique, searchable code when it's created. Pick a prefix and a template for each."
+            >
+                <div className="mb-4 rounded-lg border border-border-soft bg-secondary/50 p-3 text-xs text-text-secondary">
+                    <span className="font-semibold text-foreground">
+                        Variables:
+                    </span>{' '}
+                    <code className="rounded bg-card px-1 py-0.5">
+                        {'{prefix}'}
+                    </code>{' '}
+                    the prefix below,{' '}
+                    <code className="rounded bg-card px-1 py-0.5">
+                        {'{seq:4}'}
+                    </code>{' '}
+                    an auto-incrementing number padded to N digits,{' '}
+                    <code className="rounded bg-card px-1 py-0.5">
+                        {'{date:Y}'}
+                    </code>{' '}
+                    or{' '}
+                    <code className="rounded bg-card px-1 py-0.5">
+                        {'{date:Ymd}'}
+                    </code>{' '}
+                    today's date, and{' '}
+                    <code className="rounded bg-card px-1 py-0.5">{'{id}'}</code>{' '}
+                    the record's own ID. Unrecognized text is kept as-is, so a
+                    typo never blocks saving a record.
+                </div>
+
+                <div className="grid gap-4">
+                    {CODE_TYPES.map((type) => {
+                        const prefixKey =
+                            `${type.key}_prefix` as keyof typeof data;
+                        const templateKey =
+                            `${type.key}_template` as keyof typeof data;
+                        const prefixValue = data[prefixKey] as string;
+                        const templateValue = data[templateKey] as string;
+
+                        return (
+                            <div
+                                key={type.key}
+                                className="grid gap-2.5 border-t border-border-soft pt-4 first:border-0 first:pt-0 sm:grid-cols-[120px_1fr_1fr]"
+                            >
+                                <div>
+                                    <div className="text-[13px] font-semibold">
+                                        {type.label}
+                                    </div>
+                                    <div className="text-xs text-text-tertiary">
+                                        {type.example}
+                                    </div>
+                                </div>
+                                <div className="grid gap-1.5">
+                                    <Label htmlFor={`${type.key}_prefix`}>
+                                        Prefix
+                                    </Label>
+                                    <Input
+                                        id={`${type.key}_prefix`}
+                                        value={prefixValue}
+                                        maxLength={20}
+                                        onChange={(e) =>
+                                            setField(
+                                                prefixKey,
+                                                e.target.value.toUpperCase(),
+                                            )
+                                        }
+                                    />
+                                    <InputError
+                                        message={errors[prefixKey]}
+                                    />
+                                </div>
+                                <div className="grid gap-1.5">
+                                    <Label htmlFor={`${type.key}_template`}>
+                                        Template
+                                    </Label>
+                                    <Input
+                                        id={`${type.key}_template`}
+                                        value={templateValue}
+                                        onChange={(e) =>
+                                            setField(
+                                                templateKey,
+                                                e.target.value,
+                                            )
+                                        }
+                                    />
+                                    <InputError
+                                        message={errors[templateKey]}
+                                    />
+                                    <p className="font-mono text-xs text-text-tertiary">
+                                        Preview:{' '}
+                                        {previewCode(
+                                            prefixValue,
+                                            templateValue,
+                                        )}
+                                    </p>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
             </SettingsCard>
 
             <div className="flex justify-end">

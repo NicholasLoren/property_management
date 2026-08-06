@@ -167,6 +167,7 @@ export default function TenantForm({ tenant }: PageProps) {
                         value={data.notes ?? ''}
                         onChange={(e) => setField('notes', e.target.value)}
                         placeholder="Anything else worth noting about this tenant"
+                        maxLength={5000}
                     />
                     <InputError message={errors.notes} />
                 </div>

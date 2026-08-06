@@ -2,7 +2,12 @@
 
 namespace App\Providers;
 
+use App\Models\Lease;
+use App\Models\Property;
+use App\Models\Tenant;
+use App\Models\Unit;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -33,6 +38,18 @@ class AppServiceProvider extends ServiceProvider
         Gate::before(fn ($user, string $ability): ?bool => $user->hasRole('Super Admin') ? true : null);
 
         $this->configureActivityLog();
+
+        // Short, stable morph aliases for Document::documentable — keeps that
+        // one type column readable and immune to model renames/moves. Uses
+        // the non-enforcing form: every other polymorphic relation in the
+        // app (Spatie Media's model_type/model_id on Property, Unit, etc.)
+        // already stores full class names and must keep resolving that way.
+        Relation::morphMap([
+            'property' => Property::class,
+            'unit' => Unit::class,
+            'tenant' => Tenant::class,
+            'lease' => Lease::class,
+        ]);
     }
 
     /**

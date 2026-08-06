@@ -329,6 +329,7 @@ export default function LeaseForm({
                         value={data.notes ?? ''}
                         onChange={(e) => setField('notes', e.target.value)}
                         placeholder="Anything else worth noting about this lease"
+                        maxLength={5000}
                     />
                     <InputError message={errors.notes} />
                 </div>

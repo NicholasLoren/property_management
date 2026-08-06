@@ -6,6 +6,7 @@ export type PriceRange = { low: string | null; high: string | null };
 
 export type PropertyRow = {
     id: number;
+    code: string | null;
     name: string;
     type: string;
     type_label: string;

@@ -25,6 +25,13 @@ class PermissionCategorySeeder extends Seeder
             ['name' => 'tenants', 'label' => 'Tenants'],
             ['name' => 'leases', 'label' => 'Leases'],
             ['name' => 'landlords', 'label' => 'Landlords'],
+            ['name' => 'maintenance', 'label' => 'Maintenance'],
+            ['name' => 'payments', 'label' => 'Payments'],
+            ['name' => 'expenses', 'label' => 'Expenses'],
+            ['name' => 'incomes', 'label' => 'Income'],
+            ['name' => 'documents', 'label' => 'Documents'],
+            ['name' => 'reports', 'label' => 'Reports'],
+            ['name' => 'extras', 'label' => 'Extras'],
         ];
 
         foreach ($categories as $category) {

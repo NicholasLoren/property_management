@@ -64,7 +64,14 @@ function UnitIdentityCell({
                 </span>
             )}
             <div>
-                <div className="text-[13px] font-semibold">{unit.name}</div>
+                <div className="flex items-center gap-1.5 text-[13px] font-semibold">
+                    {unit.name}
+                    {unit.code && (
+                        <span className="rounded bg-secondary px-1 py-px font-mono text-[10.5px] font-normal text-text-tertiary">
+                            {unit.code}
+                        </span>
+                    )}
+                </div>
                 <div className="text-xs text-text-tertiary">
                     {unit.unit_type_label ?? '–'}
                     {unit.size ? ` · ${unit.size}` : ''}

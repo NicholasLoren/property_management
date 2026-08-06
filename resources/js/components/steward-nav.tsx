@@ -2,6 +2,7 @@ import { Link } from '@inertiajs/react';
 import type { InertiaLinkProps } from '@inertiajs/react';
 import {
     Activity,
+    BarChart3,
     Building2,
     CreditCard,
     DoorOpen,
@@ -13,7 +14,10 @@ import {
     Mail,
     Settings as SettingsIcon,
     ShieldCheck,
+    Sparkles,
     Trash2,
+    TrendingDown,
+    TrendingUp,
     Users as UsersIcon,
     Wrench,
 } from 'lucide-react';
@@ -28,11 +32,18 @@ import { usePermissions } from '@/hooks/use-permissions';
 import { cn } from '@/lib/utils';
 import { dashboard } from '@/routes';
 import companySettings from '@/routes/company-settings';
+import documents from '@/routes/documents';
+import expenses from '@/routes/expenses';
+import extras from '@/routes/extras';
+import incomes from '@/routes/incomes';
 import landlords from '@/routes/landlords';
 import leases from '@/routes/leases';
 import logs from '@/routes/logs';
+import maintenance from '@/routes/maintenance';
 import messages from '@/routes/messages';
+import payments from '@/routes/payments';
 import properties from '@/routes/properties';
+import reports from '@/routes/reports';
 import roles from '@/routes/roles';
 import tenants from '@/routes/tenants';
 import units from '@/routes/units';
@@ -96,9 +107,18 @@ export function useStewardNavGroups(unreadMessagesCount = 0): NavGroup[] {
         {
             label: 'Operations',
             items: [
-                { title: 'Payments', icon: CreditCard },
-                { title: 'Maintenance', icon: Wrench, count: 14 },
-                { title: 'Documents', icon: Folder },
+                {
+                    title: 'Maintenance',
+                    icon: Wrench,
+                    href: can('maintenance.view')
+                        ? maintenance.index()
+                        : undefined,
+                },
+                {
+                    title: 'Documents',
+                    icon: Folder,
+                    href: can('documents.view') ? documents.index() : undefined,
+                },
                 {
                     title: 'Messages',
                     icon: Mail,
@@ -107,6 +127,31 @@ export function useStewardNavGroups(unreadMessagesCount = 0): NavGroup[] {
                         can('messages.view') && unreadMessagesCount > 0
                             ? unreadMessagesCount
                             : undefined,
+                },
+            ],
+        },
+        {
+            label: 'Finance',
+            items: [
+                {
+                    title: 'Payments',
+                    icon: CreditCard,
+                    href: can('payments.view') ? payments.index() : undefined,
+                },
+                {
+                    title: 'Income',
+                    icon: TrendingUp,
+                    href: can('incomes.view') ? incomes.index() : undefined,
+                },
+                {
+                    title: 'Expenses',
+                    icon: TrendingDown,
+                    href: can('expenses.view') ? expenses.index() : undefined,
+                },
+                {
+                    title: 'Reports',
+                    icon: BarChart3,
+                    href: can('reports.view') ? reports.index() : undefined,
                 },
             ],
         },
@@ -138,6 +183,14 @@ export function useStewardNavGroups(unreadMessagesCount = 0): NavGroup[] {
                     title: 'Roles',
                     icon: ShieldCheck,
                     href: can('roles.view') ? roles.index() : undefined,
+                },
+                {
+                    title: 'Extras',
+                    icon: Sparkles,
+                    href: can('extras.view')
+                        ? extras.index('expense-categories')
+                        : undefined,
+                    activePrefix: '/extras',
                 },
                 {
                     title: 'Settings',

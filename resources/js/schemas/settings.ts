@@ -63,3 +63,29 @@ export const notificationSettingsSchema = z.object({
 export const testSmsSchema = z.object({
     phone: z.string().trim().min(1, 'Phone number is required.').max(20),
 });
+
+const codePrefixField = z
+    .string()
+    .trim()
+    .min(1, 'Prefix is required.')
+    .max(20)
+    .regex(/^[A-Za-z0-9_-]+$/, 'Letters, numbers, - and _ only.');
+
+const codeTemplateField = z
+    .string()
+    .trim()
+    .min(1, 'Template is required.')
+    .max(100);
+
+export const codesSettingsSchema = z.object({
+    property_prefix: codePrefixField,
+    property_template: codeTemplateField,
+    unit_prefix: codePrefixField,
+    unit_template: codeTemplateField,
+    document_prefix: codePrefixField,
+    document_template: codeTemplateField,
+    expense_prefix: codePrefixField,
+    expense_template: codeTemplateField,
+    income_prefix: codePrefixField,
+    income_template: codeTemplateField,
+});

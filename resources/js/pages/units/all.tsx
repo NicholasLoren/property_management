@@ -236,7 +236,7 @@ export default function AllUnitsIndex({
                 <Input
                     value={search}
                     onChange={(e) => onSearchChange(e.target.value)}
-                    placeholder="Search units or properties…"
+                    placeholder="Search by unit, property, or code…"
                     className="pl-9"
                 />
             </div>

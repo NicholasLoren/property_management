@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
 use Spatie\Activitylog\Models\Concerns\LogsActivity;
@@ -25,6 +26,7 @@ use Spatie\MediaLibrary\InteractsWithMedia;
  * from the Units list in the UI; a `multi_unit` Property has many.
  *
  * @property int $id
+ * @property string|null $code
  * @property int $property_id
  * @property int|null $unit_type_id
  * @property string $name
@@ -36,7 +38,7 @@ use Spatie\MediaLibrary\InteractsWithMedia;
  * @property Carbon|null $updated_at
  * @property-read UnitFeatureUnit|null $pivot
  */
-#[Fillable(['property_id', 'unit_type_id', 'name', 'size', 'status'])]
+#[Fillable(['code', 'property_id', 'unit_type_id', 'name', 'size', 'status'])]
 class Unit extends Model implements HasMedia
 {
     /** @use HasFactory<UnitFactory> */
@@ -134,5 +136,21 @@ class Unit extends Model implements HasMedia
     public function currentLease(): HasOne
     {
         return $this->hasOne(Lease::class)->where('status', LeaseStatus::Active);
+    }
+
+    /**
+     * @return HasMany<MaintenanceRequest, $this>
+     */
+    public function maintenanceRequests(): HasMany
+    {
+        return $this->hasMany(MaintenanceRequest::class);
+    }
+
+    /**
+     * @return MorphMany<Document, $this>
+     */
+    public function documents(): MorphMany
+    {
+        return $this->morphMany(Document::class, 'documentable');
     }
 }
