@@ -15,24 +15,9 @@ export type User = {
     [key: string]: unknown;
 };
 
-export type PermissionActions = {
-    view: boolean;
-    add: boolean;
-    edit: boolean;
-    delete: boolean;
-};
-
-export type Abilities = {
-    users: PermissionActions;
-    roles: PermissionActions;
-    settings: { edit: boolean };
-    logs: { view: boolean };
-    messages: { view: boolean; send: boolean; broadcast: boolean };
-};
-
 export type Auth = {
     user: User;
-    can: Abilities;
+    permissions: string[];
 };
 
 /* @chisel-passkeys */

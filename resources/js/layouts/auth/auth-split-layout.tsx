@@ -1,7 +1,7 @@
 import { Link, usePage } from '@inertiajs/react';
 import { Activity, Building2, KeyRound, ShieldCheck } from 'lucide-react';
 import type { ComponentType } from 'react';
-import { home } from '@/routes';
+import { dashboard } from '@/routes';
 import type { AuthLayoutProps } from '@/types';
 
 const FEATURES: {
@@ -32,7 +32,7 @@ export default function AuthSplitLayout({
     title,
     description,
 }: AuthLayoutProps) {
-    const { name } = usePage().props;
+    const { name, icon } = usePage().props;
 
     return (
         <div className="grid min-h-svh lg:grid-cols-[minmax(320px,460px)_1fr]">
@@ -49,11 +49,19 @@ export default function AuthSplitLayout({
                 />
 
                 <Link
-                    href={home()}
+                    href={dashboard()}
                     className="relative z-10 flex items-center gap-2.5"
                 >
-                    <span className="flex size-8 items-center justify-center rounded-lg bg-accent-brand text-accent-contrast">
-                        <KeyRound className="size-4" />
+                    <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-accent-brand text-accent-contrast">
+                        {icon ? (
+                            <img
+                                src={icon}
+                                alt=""
+                                className="size-full object-cover"
+                            />
+                        ) : (
+                            <KeyRound className="size-4" />
+                        )}
                     </span>
                     <span className="font-display text-lg font-extrabold tracking-tight text-[var(--inverse-text)]">
                         {name}
@@ -95,11 +103,19 @@ export default function AuthSplitLayout({
             <div className="flex items-center justify-center px-6 py-10 sm:px-10">
                 <div className="w-full max-w-[360px]">
                     <Link
-                        href={home()}
+                        href={dashboard()}
                         className="mb-8 flex items-center justify-center gap-2 lg:hidden"
                     >
-                        <span className="flex size-8 items-center justify-center rounded-lg bg-accent-brand text-accent-contrast">
-                            <KeyRound className="size-4" />
+                        <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-accent-brand text-accent-contrast">
+                            {icon ? (
+                                <img
+                                    src={icon}
+                                    alt=""
+                                    className="size-full object-cover"
+                                />
+                            ) : (
+                                <KeyRound className="size-4" />
+                            )}
                         </span>
                         <span className="font-display text-lg font-extrabold text-foreground">
                             {name}

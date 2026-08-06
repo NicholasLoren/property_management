@@ -4,6 +4,7 @@ import { useMemo, useRef, useState } from 'react';
 import { DataTable } from '@/components/data-table/data-table';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { usePermissions } from '@/hooks/use-permissions';
 import { cn } from '@/lib/utils';
 import { getInboxColumns, getSentColumns } from '@/pages/messages/columns';
 import type { InboxMessageRow, SentMessageRow } from '@/pages/messages/columns';
@@ -34,7 +35,8 @@ export default function MessagesIndex({
     filters,
     counts,
 }: PageProps) {
-    const { auth } = usePage().props;
+    const { name } = usePage().props;
+    const { can } = usePermissions();
     const [search, setSearch] = useState(filters.search);
     const searchDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -135,10 +137,10 @@ export default function MessagesIndex({
                         Messages
                     </h1>
                     <p className="mt-1 text-[13px] text-text-secondary">
-                        Personal messages and broadcasts sent within Steward.
+                        Personal messages and broadcasts sent within {name}.
                     </p>
                 </div>
-                {auth.can.messages.send && (
+                {can('messages.send') && (
                     <Button asChild>
                         <Link href={messages.create()}>
                             <Plus className="size-[15px]" />
@@ -170,7 +172,7 @@ export default function MessagesIndex({
                         icon: SendIcon,
                         title: 'No messages sent yet',
                         description: 'Messages you send will show up here.',
-                        action: auth.can.messages.send
+                        action: can('messages.send')
                             ? {
                                   label: 'Send your first message',
                                   href: messages.create().url,

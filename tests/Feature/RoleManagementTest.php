@@ -142,6 +142,23 @@ class RoleManagementTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_landlord_role_cannot_be_edited_or_deleted(): void
+    {
+        $admin = $this->superAdmin();
+        $landlordRole = Role::query()->where('name', 'Landlord')->firstOrFail();
+
+        $this->actingAs($admin)
+            ->patch(route('roles.update', $landlordRole), [
+                'name' => 'Renamed',
+                'permissions' => [],
+            ])
+            ->assertForbidden();
+
+        $this->actingAs($admin)
+            ->delete(route('roles.destroy', $landlordRole))
+            ->assertForbidden();
+    }
+
     public function test_role_with_assigned_users_cannot_be_trashed(): void
     {
         $admin = $this->superAdmin();

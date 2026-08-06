@@ -1,4 +1,5 @@
 import type { FormDataConvertible } from '@inertiajs/core';
+import { hasFiles } from '@inertiajs/core';
 import { router } from '@inertiajs/react';
 import { useState } from 'react';
 import type { z } from 'zod';
@@ -52,22 +53,27 @@ export function useInertiaZodForm<Schema extends z.ZodObject>(
 
         setProcessing(true);
 
-        router[method](
-            url,
-            result.data as Record<string, FormDataConvertible>,
-            {
-                preserveScroll: true,
-                onSuccess: () => {
-                    options?.onSuccess?.();
-                },
-                onError: (serverErrors) => {
-                    setErrors(serverErrors);
-                },
-                onFinish: () => {
-                    setProcessing(false);
-                },
+        // PHP never parses multipart bodies on PUT/PATCH requests, so a
+        // file field would silently arrive empty server-side — send those
+        // as a POST with a spoofed `_method` instead, which PHP does parse.
+        const payload = result.data as Record<string, FormDataConvertible>;
+        const [visitMethod, visitData] =
+            method !== 'post' && hasFiles(payload)
+                ? (['post', { ...payload, _method: method }] as const)
+                : ([method, payload] as const);
+
+        router[visitMethod](url, visitData, {
+            preserveScroll: true,
+            onSuccess: () => {
+                options?.onSuccess?.();
             },
-        );
+            onError: (serverErrors) => {
+                setErrors(serverErrors);
+            },
+            onFinish: () => {
+                setProcessing(false);
+            },
+        });
     }
 
     return { data, setField, setData, errors, processing, submit };

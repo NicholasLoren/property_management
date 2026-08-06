@@ -20,6 +20,8 @@ class PermissionCategorySeeder extends Seeder
             ['name' => 'settings', 'label' => 'Settings'],
             ['name' => 'logs', 'label' => 'Activity log'],
             ['name' => 'messages', 'label' => 'Messages'],
+            ['name' => 'properties', 'label' => 'Properties'],
+            ['name' => 'units', 'label' => 'Units'],
         ];
 
         foreach ($categories as $category) {

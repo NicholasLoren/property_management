@@ -24,20 +24,27 @@ import {
     TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { useCurrentUrl } from '@/hooks/use-current-url';
+import { usePermissions } from '@/hooks/use-permissions';
 import { cn } from '@/lib/utils';
 import { dashboard } from '@/routes';
 import companySettings from '@/routes/company-settings';
 import logs from '@/routes/logs';
 import messages from '@/routes/messages';
+import properties from '@/routes/properties';
 import roles from '@/routes/roles';
+import units from '@/routes/units';
 import users from '@/routes/users';
-import type { Abilities } from '@/types/auth';
 
 type NavEntry = {
     title: string;
     icon: ComponentType<{ className?: string }>;
     href?: NonNullable<InertiaLinkProps['href']>;
     count?: number;
+    /**
+     * When set, the item is active for any URL under this prefix, not just
+     * an exact match on `href` — e.g. Settings' per-section URLs.
+     */
+    activePrefix?: string;
 };
 
 type NavGroup = {
@@ -45,10 +52,9 @@ type NavGroup = {
     items: NavEntry[];
 };
 
-export function useStewardNavGroups(
-    can: Abilities,
-    unreadMessagesCount = 0,
-): NavGroup[] {
+export function useStewardNavGroups(unreadMessagesCount = 0): NavGroup[] {
+    const { can } = usePermissions();
+
     return [
         {
             items: [
@@ -59,8 +65,18 @@ export function useStewardNavGroups(
             label: 'Portfolio',
             items: [
                 { title: 'Landlords', icon: KeyRound, count: 32 },
-                { title: 'Properties', icon: Building2, count: 86 },
-                { title: 'Units', icon: DoorOpen, count: 238 },
+                {
+                    title: 'Properties',
+                    icon: Building2,
+                    href: can('properties.view')
+                        ? properties.index()
+                        : undefined,
+                },
+                {
+                    title: 'Units',
+                    icon: DoorOpen,
+                    href: can('units.view') ? units.all() : undefined,
+                },
                 { title: 'Leases', icon: FileText, count: 214 },
             ],
         },
@@ -73,9 +89,9 @@ export function useStewardNavGroups(
                 {
                     title: 'Messages',
                     icon: Mail,
-                    href: can.messages.view ? messages.index() : undefined,
+                    href: can('messages.view') ? messages.index() : undefined,
                     count:
-                        can.messages.view && unreadMessagesCount > 0
+                        can('messages.view') && unreadMessagesCount > 0
                             ? unreadMessagesCount
                             : undefined,
                 },
@@ -88,7 +104,7 @@ export function useStewardNavGroups(
                 {
                     title: 'Users',
                     icon: IdCard,
-                    href: can.users.view ? users.index() : undefined,
+                    href: can('users.view') ? users.index() : undefined,
                 },
             ],
         },
@@ -98,20 +114,21 @@ export function useStewardNavGroups(
                 {
                     title: 'Activity log',
                     icon: Activity,
-                    href: can.logs.view ? logs.index() : undefined,
+                    href: can('logs.view') ? logs.index() : undefined,
                 },
                 { title: 'Trash', icon: Trash2 },
                 {
                     title: 'Roles',
                     icon: ShieldCheck,
-                    href: can.roles.view ? roles.index() : undefined,
+                    href: can('roles.view') ? roles.index() : undefined,
                 },
                 {
                     title: 'Settings',
                     icon: SettingsIcon,
-                    href: can.settings.edit
-                        ? companySettings.edit()
+                    href: can('settings.edit')
+                        ? companySettings.edit('general')
                         : undefined,
+                    activePrefix: '/company-settings',
                 },
             ],
         },
@@ -125,9 +142,13 @@ export function StewardNavItem({
     item: NavEntry;
     collapsed?: boolean;
 }) {
-    const { isCurrentUrl } = useCurrentUrl();
+    const { isCurrentUrl, isCurrentOrParentUrl } = useCurrentUrl();
     const Icon = item.icon;
-    const active = item.href ? isCurrentUrl(item.href) : false;
+    const active = item.href
+        ? item.activePrefix
+            ? isCurrentOrParentUrl(item.activePrefix)
+            : isCurrentUrl(item.href)
+        : false;
 
     const className = cn(
         'group mb-px flex items-center gap-2.5 rounded-[6px] px-2.5 py-[7px] text-[13.5px] font-medium',

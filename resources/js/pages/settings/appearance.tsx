@@ -1,9 +1,11 @@
-import { Head } from '@inertiajs/react';
+import { Head, usePage } from '@inertiajs/react';
 import { SettingsCard } from '@/components/settings-card';
 import { ThemePicker } from '@/components/theme-picker';
 import { edit as editAppearance } from '@/routes/appearance';
 
 export default function Appearance() {
+    const { name } = usePage().props;
+
     return (
         <>
             <Head title="Appearance settings" />
@@ -12,7 +14,7 @@ export default function Appearance() {
 
             <SettingsCard
                 title="Theme"
-                description="Choose how Steward looks on this device."
+                description={`Choose how ${name} looks on this device.`}
             >
                 <ThemePicker />
             </SettingsCard>

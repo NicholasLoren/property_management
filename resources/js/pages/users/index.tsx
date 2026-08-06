@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { useInitials } from '@/hooks/use-initials';
+import { usePermissions } from '@/hooks/use-permissions';
 import { cn } from '@/lib/utils';
 import { getUserColumns, getUserTrashColumns } from '@/pages/users/columns';
 import type { ActiveUserRow, TrashUserRow } from '@/pages/users/columns';
@@ -55,7 +56,8 @@ export default function UsersIndex({
     roles,
     statuses,
 }: PageProps) {
-    const { auth } = usePage().props;
+    const { name } = usePage().props;
+    const { can } = usePermissions();
     const getInitials = useInitials();
     const [search, setSearch] = useState(filters.search);
     const [syncedSearch, setSyncedSearch] = useState(filters.search);
@@ -163,15 +165,18 @@ export default function UsersIndex({
         }).url;
     }
 
+    const canEditUsers = can('users.edit');
+    const canDeleteUsers = can('users.delete');
+
     const activeColumns = useMemo(
         () =>
             getUserColumns({
                 getInitials,
-                canEdit: auth.can.users.edit,
-                canDelete: auth.can.users.delete,
+                canEdit: canEditUsers,
+                canDelete: canDeleteUsers,
                 onTrash: moveToTrash,
             }),
-        [getInitials, auth.can.users.edit, auth.can.users.delete],
+        [getInitials, canEditUsers, canDeleteUsers],
     );
 
     const trashColumns = useMemo(
@@ -260,7 +265,7 @@ export default function UsersIndex({
                 </DropdownMenu>
             )}
 
-            {auth.can.users.delete && (
+            {canDeleteUsers && (
                 <div className="inline-flex gap-0.5 rounded-full border border-border-soft bg-secondary p-[3px]">
                     {(['active', 'trash'] as const).map((tab) => (
                         <button
@@ -318,10 +323,10 @@ export default function UsersIndex({
                         Users
                     </h1>
                     <p className="mt-1 text-[13px] text-text-secondary">
-                        Staff and landlord accounts with access to Steward.
+                        Staff and landlord accounts with access to {name}.
                     </p>
                 </div>
-                {auth.can.users.add && (
+                {can('users.add') && (
                     <Button asChild>
                         <Link href={users.create()}>
                             <Plus className="size-[15px]" />
@@ -372,7 +377,7 @@ export default function UsersIndex({
                         title: 'No users yet',
                         description:
                             'Invite your first teammate or landlord to get started.',
-                        action: auth.can.users.add
+                        action: can('users.add')
                             ? {
                                   label: 'Invite your first user',
                                   href: users.create().url,
@@ -397,8 +402,8 @@ export default function UsersIndex({
             )}
 
             <div className="mt-10 border-t border-border-soft pt-4.5 text-center text-[11.5px] text-text-tertiary">
-                Steward · deleted users are kept for 30 days and can be restored
-                from the Trash tab
+                {name} · deleted users are kept for 30 days and can be
+                restored from the Trash tab
             </div>
         </>
     );

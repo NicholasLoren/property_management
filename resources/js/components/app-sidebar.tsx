@@ -1,5 +1,5 @@
 import { Link, usePage } from '@inertiajs/react';
-import { KeyRound, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { Download, KeyRound, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { Fragment } from 'react';
 import { useStewardNavGroups, StewardNavItem } from '@/components/steward-nav';
 import {
@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/tooltip';
 import { UserMenuContent } from '@/components/user-menu-content';
 import { useInitials } from '@/hooks/use-initials';
+import { usePwaInstall } from '@/hooks/use-pwa-install';
 import { avatarTone, avatarToneClass } from '@/lib/avatar-tone';
 import { cn } from '@/lib/utils';
 import { dashboard } from '@/routes';
@@ -29,9 +30,10 @@ export function AppSidebar({
     collapsed = false,
     onToggleCollapse,
 }: Props) {
-    const { auth, unreadMessagesCount } = usePage().props;
+    const { auth, unreadMessagesCount, name, icon } = usePage().props;
     const getInitials = useInitials();
-    const groups = useStewardNavGroups(auth.can, unreadMessagesCount);
+    const groups = useStewardNavGroups(unreadMessagesCount);
+    const { canInstall, promptInstall } = usePwaInstall();
 
     return (
         <aside
@@ -54,12 +56,20 @@ export function AppSidebar({
                         collapsed && 'justify-center',
                     )}
                 >
-                    <span className="flex size-[26px] shrink-0 items-center justify-center rounded-[7px] bg-accent-brand text-accent-contrast">
-                        <KeyRound className="size-[15px]" />
+                    <span className="flex size-[26px] shrink-0 items-center justify-center overflow-hidden rounded-[7px] bg-accent-brand text-accent-contrast">
+                        {icon ? (
+                            <img
+                                src={icon}
+                                alt=""
+                                className="size-full object-cover"
+                            />
+                        ) : (
+                            <KeyRound className="size-[15px]" />
+                        )}
                     </span>
                     {!collapsed && (
                         <span className="truncate font-display text-[15.5px] font-extrabold text-foreground">
-                            Steward
+                            {name}
                         </span>
                     )}
                 </Link>
@@ -136,42 +146,65 @@ export function AppSidebar({
 
             {auth.user && (
                 <div className="border-t border-border-soft p-3">
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <button
-                                type="button"
-                                className={cn(
-                                    'flex items-center gap-2.5 rounded-[6px] p-2 text-left hover:bg-secondary',
-                                    collapsed
-                                        ? 'w-full justify-center'
-                                        : 'w-full',
-                                )}
-                            >
-                                <span
-                                    className={`flex size-[26px] shrink-0 items-center justify-center rounded-full font-display text-[11px] font-bold text-accent-contrast ${avatarToneClass[avatarTone(auth.user.id)]}`}
+                    <div
+                        className={cn(
+                            'flex items-center gap-1',
+                            collapsed && 'flex-col gap-2',
+                        )}
+                    >
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <button
+                                    type="button"
+                                    className={cn(
+                                        'flex min-w-0 flex-1 items-center gap-2.5 rounded-[6px] p-2 text-left hover:bg-secondary',
+                                        collapsed &&
+                                            'w-full flex-none justify-center',
+                                    )}
                                 >
-                                    {getInitials(auth.user.name)}
-                                </span>
-                                {!collapsed && (
-                                    <span className="min-w-0 flex-1">
-                                        <span className="block truncate text-[12.5px] font-semibold text-foreground">
-                                            {auth.user.name}
-                                        </span>
-                                        <span className="block text-[11px] text-text-tertiary">
-                                            {auth.user.role}
-                                        </span>
+                                    <span
+                                        className={`flex size-[26px] shrink-0 items-center justify-center rounded-full font-display text-[11px] font-bold text-accent-contrast ${avatarToneClass[avatarTone(auth.user.id)]}`}
+                                    >
+                                        {getInitials(auth.user.name)}
                                     </span>
-                                )}
-                            </button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent
-                            className="w-56 rounded-lg"
-                            align="end"
-                            side="top"
-                        >
-                            <UserMenuContent user={auth.user} />
-                        </DropdownMenuContent>
-                    </DropdownMenu>
+                                    {!collapsed && (
+                                        <span className="min-w-0 flex-1">
+                                            <span className="block truncate text-[12.5px] font-semibold text-foreground">
+                                                {auth.user.name}
+                                            </span>
+                                            <span className="block text-[11px] text-text-tertiary">
+                                                {auth.user.role}
+                                            </span>
+                                        </span>
+                                    )}
+                                </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent
+                                className="w-56 rounded-lg"
+                                align="end"
+                                side="top"
+                            >
+                                <UserMenuContent user={auth.user} />
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                        {canInstall && (
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <button
+                                        type="button"
+                                        onClick={promptInstall}
+                                        aria-label="Install app"
+                                        className="flex size-[30px] shrink-0 items-center justify-center rounded-[6px] text-text-tertiary hover:bg-secondary hover:text-foreground"
+                                    >
+                                        <Download className="size-[15px]" />
+                                    </button>
+                                </TooltipTrigger>
+                                <TooltipContent side="top">
+                                    Install app
+                                </TooltipContent>
+                            </Tooltip>
+                        )}
+                    </div>
                 </div>
             )}
         </aside>

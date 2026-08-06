@@ -10,8 +10,9 @@ use Spatie\Activitylog\Support\LogOptions;
 use Spatie\Permission\Models\Role as SpatieRole;
 
 /**
- * `is_system` roles (seeded "Super Admin") are protected from edit/delete —
- * see Gate::before in AppServiceProvider for the full-access bypass this enables.
+ * `is_system` roles (seeded "Super Admin" and "Landlord") are protected from
+ * edit/delete — see Gate::before in AppServiceProvider for the full-access
+ * bypass this enables for Super Admin specifically.
  *
  * @property int $id
  * @property string $name

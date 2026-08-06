@@ -21,6 +21,7 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import { useColumnVisibility } from '@/hooks/use-column-visibility';
+import { cn } from '@/lib/utils';
 
 export type SortState = { column: string; dir: 'asc' | 'desc' };
 
@@ -37,6 +38,8 @@ type DataTableProps<TData> = {
     isFiltered: boolean;
     emptyState: EmptyStateConfig;
     toolbar?: ReactNode;
+    /** When set, clicking anywhere on a row (outside interactive cells) opens it. */
+    onRowClick?: (row: TData) => void;
 };
 
 export function DataTable<TData>({
@@ -52,6 +55,7 @@ export function DataTable<TData>({
     isFiltered,
     emptyState,
     toolbar,
+    onRowClick,
 }: DataTableProps<TData>) {
     const [columnVisibility, setColumnVisibility] =
         useColumnVisibility(tableId);
@@ -149,7 +153,17 @@ export function DataTable<TData>({
                             </TableRow>
                         ) : (
                             table.getRowModel().rows.map((row) => (
-                                <TableRow key={row.id}>
+                                <TableRow
+                                    key={row.id}
+                                    onClick={
+                                        onRowClick
+                                            ? () => onRowClick(row.original)
+                                            : undefined
+                                    }
+                                    className={cn(
+                                        onRowClick && 'cursor-pointer',
+                                    )}
+                                >
                                     {row.getVisibleCells().map((cell) => (
                                         <TableCell key={cell.id}>
                                             {flexRender(

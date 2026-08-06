@@ -1,11 +1,13 @@
 import { Head, Link } from '@inertiajs/react';
 import { Megaphone, Send } from 'lucide-react';
 import type { FormEvent } from 'react';
+import { useMemo } from 'react';
 import { Breadcrumbs } from '@/components/breadcrumbs';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import {
     Select,
     SelectContent,
@@ -29,6 +31,16 @@ type PageProps = {
 };
 
 export default function MessageForm({ users, roles, canBroadcast }: PageProps) {
+    const userOptions = useMemo(
+        () =>
+            users.map((user) => ({
+                value: String(user.id),
+                label: user.name,
+                description: user.email,
+            })),
+        [users],
+    );
+
     const { data, setField, errors, processing, submit } = useInertiaZodForm(
         messageSchema,
         {
@@ -119,36 +131,24 @@ export default function MessageForm({ users, roles, canBroadcast }: PageProps) {
                     {data.type === 'personal' ? (
                         <div className="grid gap-1.5">
                             <Label htmlFor="recipient_user_id">To</Label>
-                            <Select
+                            <SearchableSelect
+                                id="recipient_user_id"
                                 value={
                                     data.recipient_user_id
                                         ? String(data.recipient_user_id)
-                                        : undefined
+                                        : null
                                 }
-                                onValueChange={(value) =>
-                                    setField('recipient_user_id', Number(value))
+                                onChange={(value) =>
+                                    setField(
+                                        'recipient_user_id',
+                                        value ? Number(value) : null,
+                                    )
                                 }
-                            >
-                                <SelectTrigger
-                                    id="recipient_user_id"
-                                    className="w-full"
-                                >
-                                    <SelectValue placeholder="Choose a user" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {users.map((user) => (
-                                        <SelectItem
-                                            key={user.id}
-                                            value={String(user.id)}
-                                        >
-                                            {user.name}{' '}
-                                            <span className="text-text-tertiary">
-                                                ({user.email})
-                                            </span>
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+                                options={userOptions}
+                                placeholder="Choose a user"
+                                searchPlaceholder="Search users…"
+                                emptyMessage="No users found."
+                            />
                             <InputError message={errors.recipient_user_id} />
                         </div>
                     ) : (

@@ -20,18 +20,23 @@ use Inertia\Response;
 class SettingsController extends Controller
 {
     public function edit(
+        string $section,
         GeneralSettings $general,
         BrandingSettings $branding,
         SmsSettings $sms,
         NotificationSettings $notifications,
     ): Response {
-        $logo = CompanyProfile::current()->getFirstMedia('logo');
+        $profile = CompanyProfile::current();
+        $logo = $profile->getFirstMedia('logo');
+        $appIcon = $profile->getFirstMedia('app_icon');
 
         return Inertia::render('company-settings', [
+            'section' => $section,
             'general' => $general->toArray(),
             'branding' => [
                 ...$branding->toArray(),
                 'logo' => $logo ? ['name' => $logo->file_name, 'url' => $logo->getUrl()] : null,
+                'app_icon' => $appIcon ? ['name' => $appIcon->file_name, 'url' => $appIcon->getUrl('icon-192')] : null,
             ],
             'sms' => [
                 ...$sms->toArray(),
@@ -46,7 +51,11 @@ class SettingsController extends Controller
 
     public function updateGeneral(UpdateGeneralSettingsRequest $request, GeneralSettings $settings): RedirectResponse
     {
-        $settings->fill($request->validated());
+        $validated = $request->validated();
+        $validated['address'] ??= '';
+        $validated['phone'] ??= '';
+
+        $settings->fill($validated);
         $settings->save();
 
         activity()->useLog('settings')->causedBy($request->user())->log('Updated general settings.');
@@ -59,6 +68,7 @@ class SettingsController extends Controller
     public function updateBranding(UpdateBrandingSettingsRequest $request, BrandingSettings $settings): RedirectResponse
     {
         $settings->pdf_header_text = $request->validated('pdf_header_text');
+        $settings->primary_color = $request->validated('primary_color');
         $settings->accent_color = $request->validated('accent_color');
         $settings->save();
 
@@ -68,6 +78,12 @@ class SettingsController extends Controller
             $profile->addMediaFromRequest('logo')->toMediaCollection('logo');
         } elseif ($request->boolean('logo_remove')) {
             $profile->clearMediaCollection('logo');
+        }
+
+        if ($request->hasFile('app_icon')) {
+            $profile->addMediaFromRequest('app_icon')->toMediaCollection('app_icon');
+        } elseif ($request->boolean('app_icon_remove')) {
+            $profile->clearMediaCollection('app_icon');
         }
 
         activity()->useLog('settings')->causedBy($request->user())->log('Updated branding settings.');
@@ -80,12 +96,14 @@ class SettingsController extends Controller
     public function updateSms(UpdateSmsSettingsRequest $request, SmsSettings $settings): RedirectResponse
     {
         $settings->enabled = $request->boolean('enabled');
-        $settings->africastalking_username = $request->validated('africastalking_username') ?? '';
+        $settings->africastalking_username = trim((string) $request->validated('africastalking_username'));
         $settings->sender_id = $request->validated('sender_id') ?? '';
         $settings->sandbox = $request->boolean('sandbox');
 
-        if (filled($request->validated('africastalking_api_key'))) {
-            $settings->africastalking_api_key = $request->validated('africastalking_api_key');
+        $apiKey = trim((string) $request->validated('africastalking_api_key'));
+
+        if ($apiKey !== '') {
+            $settings->africastalking_api_key = $apiKey;
         }
 
         $settings->save();

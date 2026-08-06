@@ -1,10 +1,11 @@
-import { Head, Link, router, usePage } from '@inertiajs/react';
+import { Head, Link, router } from '@inertiajs/react';
 import { Plus, Search, ShieldPlus } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { DataTable } from '@/components/data-table/data-table';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { usePermissions } from '@/hooks/use-permissions';
 import { cn } from '@/lib/utils';
 import { getRoleColumns, getRoleTrashColumns } from '@/pages/roles/columns';
 import type { ActiveRoleRow, TrashRoleRow } from '@/pages/roles/columns';
@@ -37,7 +38,7 @@ export default function RolesIndex({
     filters,
     counts,
 }: PageProps) {
-    const { auth } = usePage().props;
+    const { can } = usePermissions();
     const [search, setSearch] = useState(filters.search);
     const searchDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -118,14 +119,17 @@ export default function RolesIndex({
         }).url;
     }
 
+    const canEditRoles = can('roles.edit');
+    const canDeleteRoles = can('roles.delete');
+
     const activeColumns = useMemo(
         () =>
             getRoleColumns({
-                canEdit: auth.can.roles.edit,
-                canDelete: auth.can.roles.delete,
+                canEdit: canEditRoles,
+                canDelete: canDeleteRoles,
                 onTrash: moveToTrash,
             }),
-        [auth.can.roles.edit, auth.can.roles.delete],
+        [canEditRoles, canDeleteRoles],
     );
 
     const trashColumns = useMemo(
@@ -151,7 +155,7 @@ export default function RolesIndex({
                 />
             </div>
 
-            {auth.can.roles.delete && (
+            {canDeleteRoles && (
                 <div className="inline-flex gap-0.5 rounded-full border border-border-soft bg-secondary p-[3px]">
                     {(['active', 'trash'] as const).map((tab) => (
                         <button
@@ -210,7 +214,7 @@ export default function RolesIndex({
                         Roles and the permissions they grant.
                     </p>
                 </div>
-                {auth.can.roles.add && (
+                {can('roles.add') && (
                     <Button asChild>
                         <Link href={roles.create()}>
                             <Plus className="size-[15px]" />
@@ -230,7 +234,7 @@ export default function RolesIndex({
                         title: 'No roles yet',
                         description:
                             'Create your first role and choose which permissions it grants.',
-                        action: auth.can.roles.add
+                        action: can('roles.add')
                             ? {
                                   label: 'Add your first role',
                                   href: roles.create().url,

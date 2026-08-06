@@ -16,6 +16,8 @@ export const generalSettingsSchema = z.object({
         .min(1, 'Support email is required.')
         .email('Enter a valid email address.')
         .max(255),
+    address: z.string().trim().max(500).optional(),
+    phone: z.string().trim().max(32).optional(),
     default_currency: z
         .string()
         .trim()
@@ -31,11 +33,16 @@ export const brandingSettingsSchema = z.object({
         .trim()
         .min(1, 'Header text is required.')
         .max(255),
+    primary_color: z
+        .string()
+        .regex(/^#[0-9A-Fa-f]{6}$/, 'Use a hex color, e.g. #13181A.'),
     accent_color: z
         .string()
         .regex(/^#[0-9A-Fa-f]{6}$/, 'Use a hex color, e.g. #1F6F60.'),
     logo: z.instanceof(File).optional().nullable(),
     logo_remove: z.boolean().optional(),
+    app_icon: z.instanceof(File).optional().nullable(),
+    app_icon_remove: z.boolean().optional(),
 });
 
 export const SENDER_ID_MAX_LENGTH = 11;

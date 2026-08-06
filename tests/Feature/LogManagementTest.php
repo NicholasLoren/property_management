@@ -108,4 +108,32 @@ class LogManagementTest extends TestCase
     {
         $this->assertFalse(Route::has('logs.destroy'));
     }
+
+    public function test_a_sent_messages_log_entry_includes_the_full_body(): void
+    {
+        // The description alone ("Sent a personal message: ...") doesn't
+        // say what was actually sent — the quick-view panel needs the full
+        // body available in the log entry's properties.
+        $admin = $this->superAdmin();
+        $recipient = User::factory()->create();
+
+        $this->actingAs($admin)
+            ->post(route('messages.store'), [
+                'type' => 'personal',
+                'subject' => 'Quarterly report reminder',
+                'body' => 'Please submit your report by Friday.',
+                'recipient_user_id' => $recipient->id,
+            ])
+            ->assertRedirect();
+
+        $this->actingAs($admin)
+            ->get(route('logs.index', ['search' => 'Quarterly report reminder']))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('logs/index')
+                ->has('logs.data', 1)
+                ->where('logs.data.0.properties.attributes.body', 'Please submit your report by Friday.')
+                ->where('logs.data.0.properties.attributes.subject', 'Quarterly report reminder')
+            );
+    }
 }

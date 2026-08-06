@@ -11,7 +11,9 @@ import { Breadcrumbs } from '@/components/breadcrumbs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useInitials } from '@/hooks/use-initials';
+import { usePermissions } from '@/hooks/use-permissions';
 import { avatarTone, avatarToneClass, badgeToneClass } from '@/lib/avatar-tone';
+import { formatDate, formatDateTime } from '@/lib/datetime';
 import users from '@/routes/users';
 
 type UserShowRow = {
@@ -40,29 +42,9 @@ const STATUS_DOT_CLASS: Record<string, string> = {
     suspended: 'bg-text-tertiary',
 };
 
-function formatDateTime(iso: string | null): string {
-    if (!iso) {
-        return 'Never';
-    }
-
-    return new Date(iso).toLocaleString(undefined, {
-        dateStyle: 'medium',
-        timeStyle: 'short',
-    });
-}
-
-function formatDate(iso: string | null): string {
-    if (!iso) {
-        return '–';
-    }
-
-    return new Date(iso).toLocaleDateString(undefined, {
-        dateStyle: 'medium',
-    });
-}
-
 export default function UserShow({ user }: PageProps) {
-    const { auth } = usePage().props;
+    const { timezone } = usePage().props;
+    const { can } = usePermissions();
     const getInitials = useInitials();
 
     return (
@@ -94,7 +76,7 @@ export default function UserShow({ user }: PageProps) {
                         </p>
                     </div>
                 </div>
-                {auth.can.users.edit && (
+                {can('users.edit') && (
                     <Button asChild variant="outline">
                         <Link href={users.edit(user)}>
                             <Pencil className="size-[15px]" />
@@ -146,7 +128,11 @@ export default function UserShow({ user }: PageProps) {
                                 Last active
                             </dt>
                             <dd className="mt-1 text-[13px] text-text-secondary">
-                                {formatDateTime(user.last_active_at)}
+                                {formatDateTime(
+                                    user.last_active_at,
+                                    timezone,
+                                    'Never',
+                                )}
                             </dd>
                         </div>
                         <div>
@@ -154,7 +140,7 @@ export default function UserShow({ user }: PageProps) {
                                 Joined
                             </dt>
                             <dd className="mt-1 text-[13px] text-text-secondary">
-                                {formatDate(user.created_at)}
+                                {formatDate(user.created_at, timezone)}
                             </dd>
                         </div>
                     </dl>

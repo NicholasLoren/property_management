@@ -1,4 +1,4 @@
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, usePage } from '@inertiajs/react';
 import type { FormEvent } from 'react';
 import { useState } from 'react';
 import { Breadcrumbs } from '@/components/breadcrumbs';
@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { FileDropzone } from '@/components/ui/file-dropzone';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import {
     Select,
     SelectContent,
@@ -43,6 +44,7 @@ type PageProps = {
 };
 
 export default function UserForm({ user, roles, statuses }: PageProps) {
+    const { name: appName } = usePage().props;
     const isEdit = Boolean(user);
     const [existingDocRemoved, setExistingDocRemoved] = useState(false);
 
@@ -98,7 +100,7 @@ export default function UserForm({ user, roles, statuses }: PageProps) {
                 <p className="mt-1 text-[13px] text-text-secondary">
                     {isEdit
                         ? 'Update this account’s details, role, and status.'
-                        : 'Send a staff or landlord invitation to join Steward.'}
+                        : `Send a staff or landlord invitation to join ${appName}.`}
                 </p>
             </div>
 
@@ -134,24 +136,14 @@ export default function UserForm({ user, roles, statuses }: PageProps) {
 
                     <div className="grid gap-1.5">
                         <Label htmlFor="role">Role</Label>
-                        <Select
+                        <SearchableSelect
+                            id="role"
                             value={data.role}
-                            onValueChange={(value) => setField('role', value)}
-                        >
-                            <SelectTrigger id="role" className="w-full">
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {roles.map((role) => (
-                                    <SelectItem
-                                        key={role.value}
-                                        value={role.value}
-                                    >
-                                        {role.label}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
+                            onChange={(value) => setField('role', value ?? '')}
+                            options={roles}
+                            placeholder="Select a role…"
+                            searchPlaceholder="Search roles…"
+                        />
                         <InputError message={errors.role} />
                     </div>
 

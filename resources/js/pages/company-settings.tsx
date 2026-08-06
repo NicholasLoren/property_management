@@ -1,4 +1,4 @@
-import { Head } from '@inertiajs/react';
+import { Head, Link, usePage } from '@inertiajs/react';
 import { Bell, Building2, Folder, MessageSquare, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import type { ComponentType, FormEvent } from 'react';
@@ -6,6 +6,7 @@ import InputError from '@/components/input-error';
 import { SettingsCard, SettingsRow } from '@/components/settings-card';
 import { Button } from '@/components/ui/button';
 import { FileDropzone } from '@/components/ui/file-dropzone';
+import { ImageCropDialog } from '@/components/ui/image-crop-dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -43,17 +44,22 @@ const SECTIONS: {
 ];
 
 type PageProps = {
+    section: SectionKey;
     general: {
         company_name: string;
         support_email: string;
+        address: string;
+        phone: string;
         default_currency: string;
         timezone: string;
         trash_retention_days: number;
     };
     branding: {
         pdf_header_text: string;
+        primary_color: string;
         accent_color: string;
         logo: { name: string; url: string } | null;
+        app_icon: { name: string; url: string } | null;
     };
     sms: {
         enabled: boolean;
@@ -70,13 +76,12 @@ type PageProps = {
 };
 
 export default function CompanySettings({
+    section,
     general,
     branding,
     sms,
     notifications,
 }: PageProps) {
-    const [section, setSection] = useState<SectionKey>('general');
-
     return (
         <>
             <Head title="Settings" />
@@ -86,17 +91,18 @@ export default function CompanySettings({
                     Settings
                 </h1>
                 <p className="mt-1 text-[13px] text-text-secondary">
-                    Configure how Steward works for your company.
+                    Configure how {general.company_name} works for your
+                    company.
                 </p>
             </div>
 
             <div className="grid max-w-[900px] items-start gap-7 md:grid-cols-[200px_1fr]">
                 <nav className="flex flex-col gap-0.5 md:sticky md:top-[74px]">
                     {SECTIONS.map((item) => (
-                        <button
+                        <Link
                             key={item.key}
-                            type="button"
-                            onClick={() => setSection(item.key)}
+                            href={companySettings.edit(item.key)}
+                            prefetch
                             className={cn(
                                 'flex items-center gap-2.5 rounded-[6px] px-2.5 py-2 text-left text-[13.5px] font-medium',
                                 section === item.key
@@ -113,7 +119,7 @@ export default function CompanySettings({
                                 )}
                             />
                             {item.label}
-                        </button>
+                        </Link>
                     ))}
                 </nav>
 
@@ -177,6 +183,31 @@ function GeneralSection({ general }: { general: PageProps['general'] }) {
                         <InputError message={errors.support_email} />
                     </div>
                     <div className="grid gap-1.5">
+                        <Label htmlFor="phone">Contact phone</Label>
+                        <Input
+                            id="phone"
+                            type="tel"
+                            value={data.phone}
+                            onChange={(e) =>
+                                setField('phone', e.target.value)
+                            }
+                            placeholder="+2567xxxxxxxx"
+                        />
+                        <InputError message={errors.phone} />
+                    </div>
+                    <div className="grid gap-1.5 sm:col-span-2">
+                        <Label htmlFor="address">Address</Label>
+                        <Input
+                            id="address"
+                            value={data.address}
+                            onChange={(e) =>
+                                setField('address', e.target.value)
+                            }
+                            placeholder="Plot 12, Kira Road, Kampala"
+                        />
+                        <InputError message={errors.address} />
+                    </div>
+                    <div className="grid gap-1.5">
                         <Label htmlFor="default_currency">
                             Default currency
                         </Label>
@@ -219,15 +250,22 @@ function GeneralSection({ general }: { general: PageProps['general'] }) {
     );
 }
 
+const APP_ICON_OUTPUT_SIZE = 512;
+
 function BrandingSection({ branding }: { branding: PageProps['branding'] }) {
     const [logoRemoved, setLogoRemoved] = useState(false);
+    const [appIconRemoved, setAppIconRemoved] = useState(false);
+    const [appIconToCrop, setAppIconToCrop] = useState<File | null>(null);
     const { data, setField, errors, processing, submit } = useInertiaZodForm(
         brandingSettingsSchema,
         {
             pdf_header_text: branding.pdf_header_text,
+            primary_color: branding.primary_color,
             accent_color: branding.accent_color,
             logo: null,
             logo_remove: false,
+            app_icon: null,
+            app_icon_remove: false,
         },
     );
 
@@ -237,6 +275,8 @@ function BrandingSection({ branding }: { branding: PageProps['branding'] }) {
     }
 
     const existingLogo = !logoRemoved && !data.logo ? branding.logo : null;
+    const existingAppIcon =
+        !appIconRemoved && !data.app_icon ? branding.app_icon : null;
 
     return (
         <form onSubmit={handleSubmit} noValidate>
@@ -261,10 +301,97 @@ function BrandingSection({ branding }: { branding: PageProps['branding'] }) {
             </SettingsCard>
 
             <SettingsCard
+                title="App icon"
+                description="Used for the browser favicon, and the icon shown when the app is installed to a phone or desktop. Any image works — you’ll crop it to a square next."
+            >
+                <FileDropzone
+                    accept="image/jpeg,image/png,image/webp"
+                    value={data.app_icon ?? null}
+                    onChange={(file) => {
+                        if (file) {
+                            setAppIconToCrop(file);
+
+                            return;
+                        }
+
+                        setField('app_icon', null);
+                    }}
+                    existing={existingAppIcon}
+                    onRemoveExisting={() => {
+                        setAppIconRemoved(true);
+                        setField('app_icon_remove', true);
+                    }}
+                    error={errors.app_icon}
+                />
+                <ImageCropDialog
+                    file={appIconToCrop}
+                    outputSize={APP_ICON_OUTPUT_SIZE}
+                    onCropped={(cropped) => {
+                        setField('app_icon', cropped);
+                        setField('app_icon_remove', false);
+                        setAppIconToCrop(null);
+                    }}
+                    onCancel={() => setAppIconToCrop(null)}
+                />
+            </SettingsCard>
+
+            <SettingsCard
+                title="Theme colors"
+                description="Used throughout the app — Primary drives buttons and other solid controls; Accent drives highlights like the active nav item, links, and focus rings. Readable text on top of each is worked out automatically."
+            >
+                <div className="grid gap-3.5 sm:grid-cols-2">
+                    <div className="grid gap-1.5">
+                        <Label htmlFor="primary_color">Primary color</Label>
+                        <div className="flex items-center gap-2.5">
+                            <input
+                                type="color"
+                                value={data.primary_color}
+                                onChange={(e) =>
+                                    setField('primary_color', e.target.value)
+                                }
+                                className="size-9 cursor-pointer rounded-md border border-border-soft"
+                            />
+                            <Input
+                                id="primary_color"
+                                value={data.primary_color}
+                                onChange={(e) =>
+                                    setField('primary_color', e.target.value)
+                                }
+                                className="max-w-[140px]"
+                            />
+                        </div>
+                        <InputError message={errors.primary_color} />
+                    </div>
+                    <div className="grid gap-1.5">
+                        <Label htmlFor="accent_color">Accent color</Label>
+                        <div className="flex items-center gap-2.5">
+                            <input
+                                type="color"
+                                value={data.accent_color}
+                                onChange={(e) =>
+                                    setField('accent_color', e.target.value)
+                                }
+                                className="size-9 cursor-pointer rounded-md border border-border-soft"
+                            />
+                            <Input
+                                id="accent_color"
+                                value={data.accent_color}
+                                onChange={(e) =>
+                                    setField('accent_color', e.target.value)
+                                }
+                                className="max-w-[140px]"
+                            />
+                        </div>
+                        <InputError message={errors.accent_color} />
+                    </div>
+                </div>
+            </SettingsCard>
+
+            <SettingsCard
                 title="PDF & Excel exports"
                 description="Applied to the header of every exported report."
             >
-                <div className="mb-3.5 grid gap-1.5">
+                <div className="grid gap-1.5">
                     <Label htmlFor="pdf_header_text">Header text</Label>
                     <Input
                         id="pdf_header_text"
@@ -274,28 +401,6 @@ function BrandingSection({ branding }: { branding: PageProps['branding'] }) {
                         }
                     />
                     <InputError message={errors.pdf_header_text} />
-                </div>
-                <div className="grid gap-1.5">
-                    <Label htmlFor="accent_color">Accent color</Label>
-                    <div className="flex items-center gap-2.5">
-                        <input
-                            type="color"
-                            value={data.accent_color}
-                            onChange={(e) =>
-                                setField('accent_color', e.target.value)
-                            }
-                            className="size-9 cursor-pointer rounded-md border border-border-soft"
-                        />
-                        <Input
-                            id="accent_color"
-                            value={data.accent_color}
-                            onChange={(e) =>
-                                setField('accent_color', e.target.value)
-                            }
-                            className="max-w-[140px]"
-                        />
-                    </div>
-                    <InputError message={errors.accent_color} />
                 </div>
             </SettingsCard>
 
@@ -365,7 +470,12 @@ function SmsSection({ sms }: { sms: PageProps['sms'] }) {
                             </Label>
                             <Input
                                 id="africastalking_username"
-                                value={data.africastalking_username ?? ''}
+                                value={
+                                    data.sandbox
+                                        ? 'sandbox'
+                                        : (data.africastalking_username ?? '')
+                                }
+                                disabled={data.sandbox}
                                 onChange={(e) =>
                                     setField(
                                         'africastalking_username',
@@ -373,6 +483,11 @@ function SmsSection({ sms }: { sms: PageProps['sms'] }) {
                                     )
                                 }
                             />
+                            <p className="text-xs text-text-tertiary">
+                                {data.sandbox
+                                    ? 'Sandbox mode always uses "sandbox" as the username — this is handled automatically.'
+                                    : 'Your Africa’s Talking account username.'}
+                            </p>
                             <InputError
                                 message={errors.africastalking_username}
                             />
@@ -397,6 +512,11 @@ function SmsSection({ sms }: { sms: PageProps['sms'] }) {
                                         : 'Enter API key'
                                 }
                             />
+                            <p className="text-xs text-text-tertiary">
+                                Sandbox and live apps have separate API keys —
+                                use the sandbox app's key while sandbox mode is
+                                on.
+                            </p>
                             <InputError
                                 message={errors.africastalking_api_key}
                             />
@@ -470,6 +590,7 @@ function NotificationsSection({
 }: {
     notifications: PageProps['notifications'];
 }) {
+    const { name } = usePage().props;
     const { data, setField, processing, submit } = useInertiaZodForm(
         notificationSettingsSchema,
         notifications,
@@ -484,7 +605,7 @@ function NotificationsSection({
         <form onSubmit={handleSubmit} noValidate>
             <SettingsCard
                 title="Notification channels"
-                description="Which channels Steward is allowed to use company-wide."
+                description={`Which channels ${name} is allowed to use company-wide.`}
             >
                 <SettingsRow
                     label="Email"

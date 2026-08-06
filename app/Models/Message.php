@@ -62,7 +62,7 @@ class Message extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['type', 'subject'])
+            ->logOnly(['type', 'subject', 'body'])
             ->useLogName('message')
             ->setDescriptionForEvent(fn (string $eventName): string => $eventName === 'created'
                 ? "Sent a {$this->type->value} message: \"{$this->subject}\""

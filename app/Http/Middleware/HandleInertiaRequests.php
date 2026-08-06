@@ -2,7 +2,8 @@
 
 namespace App\Http\Middleware;
 
-use App\Models\User;
+use App\Settings\GeneralSettings;
+use App\Support\Branding;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -39,51 +40,20 @@ class HandleInertiaRequests extends Middleware
         $this->touchLastActive($request);
 
         $user = $request->user();
+        $general = app(GeneralSettings::class);
 
         return [
             ...parent::share($request),
-            'name' => config('app.name'),
+            'name' => Branding::name(),
+            'icon' => Branding::iconUrl(),
+            'currency' => $general->default_currency,
+            'timezone' => $general->timezone,
             'auth' => [
                 'user' => $user ? [...$user->toArray(), 'role' => $user->getRoleNames()->first()] : null,
-                'can' => $user ? $this->abilities($user) : null,
+                'permissions' => $user ? $user->getAllPermissions()->pluck('name')->all() : [],
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'unreadMessagesCount' => $user ? $user->unreadMessagesCount() : 0,
-        ];
-    }
-
-    /**
-     * The abilities the frontend branches on, grouped to match the
-     * permission catalog (see database/seeders/PermissionSeeder.php).
-     *
-     * @return array<string, array<string, bool>>
-     */
-    private function abilities(User $user): array
-    {
-        return [
-            'users' => [
-                'view' => $user->can('users.view'),
-                'add' => $user->can('users.add'),
-                'edit' => $user->can('users.edit'),
-                'delete' => $user->can('users.delete'),
-            ],
-            'roles' => [
-                'view' => $user->can('roles.view'),
-                'add' => $user->can('roles.add'),
-                'edit' => $user->can('roles.edit'),
-                'delete' => $user->can('roles.delete'),
-            ],
-            'settings' => [
-                'edit' => $user->can('settings.edit'),
-            ],
-            'logs' => [
-                'view' => $user->can('logs.view'),
-            ],
-            'messages' => [
-                'view' => $user->can('messages.view'),
-                'send' => $user->can('messages.send'),
-                'broadcast' => $user->can('messages.broadcast'),
-            ],
         ];
     }
 

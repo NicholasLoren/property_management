@@ -67,6 +67,19 @@ class LogController extends Controller
             'platform' => $activity->getProperty('platform'),
             'device' => $activity->getProperty('device'),
             'created_at' => $activity->created_at?->toIso8601String(),
+            // Everything else captured about the event, powering the
+            // quick-view panel so "sent a message" can actually show what
+            // was sent, not just the one-line description: logged model
+            // attributes and their previous values on updates (stored in
+            // the separate `attribute_changes` column by this package),
+            // merged with any custom properties from a manual activity()
+            // call (e.g. the SMS test's phone/success).
+            'properties' => [
+                ...($activity->attribute_changes?->all() ?? []),
+                ...($activity->properties ?? collect())
+                    ->except(['ip', 'browser', 'platform', 'device'])
+                    ->all(),
+            ],
         ];
     }
 }

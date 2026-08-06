@@ -1,4 +1,4 @@
-import { Form, Head } from '@inertiajs/react';
+import { Form, Head, usePage } from '@inertiajs/react';
 import { Lock, Mail, ShieldCheck } from 'lucide-react';
 import InputError from '@/components/input-error';
 import PasswordInput from '@/components/password-input';
@@ -17,6 +17,8 @@ type Props = {
 };
 
 export default function Login({ status, canResetPassword }: Props) {
+    const { name } = usePage().props;
+
     return (
         <>
             <Head title="Log in" />
@@ -117,7 +119,7 @@ export default function Login({ status, canResetPassword }: Props) {
                         </div>
 
                         <p className="mt-2.5 border-t border-border-soft pt-4 text-center text-[12px] leading-relaxed text-text-tertiary">
-                            Steward is invite-only. If you need access, ask your
+                            {name} is invite-only. If you need access, ask your
                             administrator to add you from{' '}
                             <strong className="font-semibold text-text-secondary">
                                 Users → Invite user
@@ -139,5 +141,5 @@ export default function Login({ status, canResetPassword }: Props) {
 
 Login.layout = {
     title: 'Welcome back',
-    description: 'Sign in to your Steward account to continue.',
+    description: 'Sign in to your account to continue.',
 };

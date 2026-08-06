@@ -2,6 +2,7 @@ import type { ColumnDef } from '@tanstack/react-table';
 import { Laptop, MapPin } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { avatarTone, badgeToneClass } from '@/lib/avatar-tone';
+import { formatDateTime } from '@/lib/datetime';
 
 export type LogRow = {
     id: number;
@@ -15,16 +16,15 @@ export type LogRow = {
     platform: string | null;
     device: string | null;
     created_at: string;
+    /**
+     * Everything else captured about the event: `attributes`/`old` for
+     * model changes (create/update), or flat custom keys for manual
+     * `activity()->log()` calls (e.g. an SMS test's phone/success).
+     */
+    properties: Record<string, unknown>;
 };
 
-function formatDateTime(iso: string): string {
-    return new Date(iso).toLocaleString(undefined, {
-        dateStyle: 'medium',
-        timeStyle: 'short',
-    });
-}
-
-export function getLogColumns(): ColumnDef<LogRow>[] {
+export function getLogColumns(opts: { timezone: string }): ColumnDef<LogRow>[] {
     return [
         {
             id: 'description',
@@ -105,7 +105,7 @@ export function getLogColumns(): ColumnDef<LogRow>[] {
             meta: { label: 'When', sortKey: 'created_at' },
             cell: ({ row }) => (
                 <span className="font-mono text-xs text-text-tertiary tabular-nums">
-                    {formatDateTime(row.original.created_at)}
+                    {formatDateTime(row.original.created_at, opts.timezone)}
                 </span>
             ),
         },

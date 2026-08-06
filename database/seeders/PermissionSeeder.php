@@ -40,6 +40,18 @@ class PermissionSeeder extends Seeder
                 ['name' => 'messages.send', 'label' => 'Send personal messages'],
                 ['name' => 'messages.broadcast', 'label' => 'Send broadcasts'],
             ],
+            'properties' => [
+                ['name' => 'properties.view', 'label' => 'View properties'],
+                ['name' => 'properties.add', 'label' => 'Add properties'],
+                ['name' => 'properties.edit', 'label' => 'Edit properties'],
+                ['name' => 'properties.delete', 'label' => 'Delete properties'],
+            ],
+            'units' => [
+                ['name' => 'units.view', 'label' => 'View units'],
+                ['name' => 'units.add', 'label' => 'Add units'],
+                ['name' => 'units.edit', 'label' => 'Edit units'],
+                ['name' => 'units.delete', 'label' => 'Delete units'],
+            ],
         ];
 
         foreach ($catalog as $categoryName => $permissions) {

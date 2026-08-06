@@ -1,7 +1,8 @@
-import { Head } from '@inertiajs/react';
+import { Head, usePage } from '@inertiajs/react';
 import { CheckCheck, Mail, Megaphone, Send } from 'lucide-react';
 import { Breadcrumbs } from '@/components/breadcrumbs';
 import { Badge } from '@/components/ui/badge';
+import { formatDateTime } from '@/lib/datetime';
 import messages from '@/routes/messages';
 
 type Recipient = { name: string; read_at: string | null };
@@ -20,18 +21,9 @@ type MessageShowRow = {
 
 type PageProps = { message: MessageShowRow };
 
-function formatDateTime(iso: string | null): string {
-    if (!iso) {
-        return '–';
-    }
-
-    return new Date(iso).toLocaleString(undefined, {
-        dateStyle: 'medium',
-        timeStyle: 'short',
-    });
-}
-
 export default function MessageShow({ message }: PageProps) {
+    const { timezone } = usePage().props;
+
     return (
         <>
             <Head title={message.subject} />
@@ -65,7 +57,7 @@ export default function MessageShow({ message }: PageProps) {
                             {message.is_sender
                                 ? 'From you'
                                 : `From ${message.sender_name}`}{' '}
-                            · {formatDateTime(message.created_at)}
+                            · {formatDateTime(message.created_at, timezone)}
                         </p>
                     </div>
                 </div>

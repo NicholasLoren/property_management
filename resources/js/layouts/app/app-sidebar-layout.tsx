@@ -1,5 +1,6 @@
 import { usePage } from '@inertiajs/react';
 import { useState } from 'react';
+import { AppFooter } from '@/components/app-footer';
 import { AppSidebar } from '@/components/app-sidebar';
 import { AppTopbar } from '@/components/app-topbar';
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
@@ -45,6 +46,7 @@ export default function AppSidebarLayout({ children }: AppLayoutProps) {
                 <main className="max-w-[1320px] flex-1 px-5 py-6 sm:px-[30px] sm:py-[26px]">
                     {children}
                 </main>
+                <AppFooter />
             </div>
         </div>
     );

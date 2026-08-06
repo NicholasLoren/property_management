@@ -46,7 +46,7 @@
 <body>
     <p class="brand-header">{{ $headerText }}</p>
     <h1>{{ $title }}</h1>
-    <p class="meta">Exported {{ now()->toDayDateTimeString() }} &middot; {{ count($rows) }} {{ Str::plural('record', count($rows)) }}</p>
+    <p class="meta">Exported {{ now()->setTimezone(app(\App\Settings\GeneralSettings::class)->timezone)->toDayDateTimeString() }} &middot; {{ count($rows) }} {{ Str::plural('record', count($rows)) }}</p>
 
     <table>
         <thead>

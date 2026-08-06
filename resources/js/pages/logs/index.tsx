@@ -1,10 +1,11 @@
-import { Head, router } from '@inertiajs/react';
+import { Head, router, usePage } from '@inertiajs/react';
 import { ScrollText, Search } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import { DataTable } from '@/components/data-table/data-table';
 import { Input } from '@/components/ui/input';
 import { getLogColumns } from '@/pages/logs/columns';
 import type { LogRow } from '@/pages/logs/columns';
+import { LogDetailsSheet } from '@/pages/logs/log-details-sheet';
 import logs from '@/routes/logs';
 
 type PageProps = {
@@ -27,7 +28,9 @@ type PageProps = {
 };
 
 export default function LogsIndex({ logs: paginator, filters }: PageProps) {
+    const { name, timezone } = usePage().props;
     const [search, setSearch] = useState(filters.search);
+    const [selectedLog, setSelectedLog] = useState<LogRow | null>(null);
     const searchDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     function reload(partial: Partial<typeof filters>) {
@@ -56,7 +59,10 @@ export default function LogsIndex({ logs: paginator, filters }: PageProps) {
         }, 300);
     }
 
-    const columns = useMemo(() => getLogColumns(), []);
+    const columns = useMemo(
+        () => getLogColumns({ timezone }),
+        [timezone],
+    );
     const isFiltered = filters.search !== '';
 
     const toolbar = (
@@ -80,8 +86,9 @@ export default function LogsIndex({ logs: paginator, filters }: PageProps) {
                     Activity log
                 </h1>
                 <p className="mt-1 text-[13px] text-text-secondary">
-                    Every action taken in Steward, kept for auditing — this list
-                    can’t be edited or deleted.
+                    Every action taken in {name}, kept for auditing — this
+                    list can’t be edited or deleted. Click a row for full
+                    details.
                 </p>
             </div>
 
@@ -113,10 +120,15 @@ export default function LogsIndex({ logs: paginator, filters }: PageProps) {
                 emptyState={{
                     icon: ScrollText,
                     title: 'No activity yet',
-                    description:
-                        'Actions taken across Steward will show up here.',
+                    description: `Actions taken across ${name} will show up here.`,
                 }}
                 toolbar={toolbar}
+                onRowClick={setSelectedLog}
+            />
+
+            <LogDetailsSheet
+                log={selectedLog}
+                onOpenChange={(open) => !open && setSelectedLog(null)}
             />
         </>
     );

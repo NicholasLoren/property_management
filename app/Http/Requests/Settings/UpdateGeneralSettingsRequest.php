@@ -19,6 +19,8 @@ class UpdateGeneralSettingsRequest extends FormRequest
         return [
             'company_name' => ['required', 'string', 'max:255'],
             'support_email' => ['required', 'string', 'email', 'max:255'],
+            'address' => ['nullable', 'string', 'max:500'],
+            'phone' => ['nullable', 'string', 'max:32'],
             'default_currency' => ['required', 'string', 'size:3'],
             'timezone' => ['required', 'string', 'timezone'],
             'trash_retention_days' => ['required', 'integer', 'min:1', 'max:365'],

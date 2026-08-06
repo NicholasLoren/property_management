@@ -8,6 +8,8 @@ class BrandingSettings extends Settings
 {
     public string $pdf_header_text;
 
+    public string $primary_color;
+
     public string $accent_color;
 
     public static function group(): string

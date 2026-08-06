@@ -1,4 +1,4 @@
-import { Link } from '@inertiajs/react';
+import { Link, usePage } from '@inertiajs/react';
 import { Building2, IdCard, Plus, Search, User } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
@@ -9,6 +9,7 @@ export function CommandPalette({
 }: {
     canManageUsers: boolean;
 }) {
+    const { name } = usePage().props;
     const [open, setOpen] = useState(false);
 
     useEffect(() => {
@@ -46,7 +47,7 @@ export function CommandPalette({
             <Dialog open={open} onOpenChange={setOpen}>
                 <DialogContent className="top-[16%] max-w-xl translate-y-0 gap-0 overflow-hidden p-0 [&>button]:hidden">
                     <DialogTitle className="sr-only">
-                        Search Steward
+                        Search {name}
                     </DialogTitle>
                     <div className="flex items-center gap-2.5 border-b border-border-soft px-4 py-3.5">
                         <Search className="size-4 text-text-tertiary" />

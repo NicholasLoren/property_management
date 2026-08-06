@@ -1,5 +1,11 @@
 import type { Auth } from '@/types/auth';
 
+declare global {
+    interface Window {
+        __APP_NAME__?: string;
+    }
+}
+
 declare module 'react' {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     interface InputHTMLAttributes<T> {
@@ -11,6 +17,9 @@ declare module '@inertiajs/core' {
     export interface InertiaConfig {
         sharedPageProps: {
             name: string;
+            icon: string | null;
+            currency: string;
+            timezone: string;
             auth: Auth;
             sidebarOpen: boolean;
             unreadMessagesCount: number;

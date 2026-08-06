@@ -1,4 +1,4 @@
-import { Head } from '@inertiajs/react';
+import { Head, usePage } from '@inertiajs/react';
 import {
     ArrowDown,
     ArrowUp,
@@ -20,6 +20,7 @@ import {
 } from 'recharts';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { formatCurrency } from '@/lib/currency';
 
 const COLLECTIONS_6M = [
     { month: 'Mar', amount: 265000 },
@@ -45,19 +46,19 @@ const RENEWALS = [
         unit: 'Alderwood Residences · 4B',
         tenant: 'Marisol Vega',
         ends: 'Aug 14, 2026',
-        rent: '$1,850',
+        rent: 1850,
     },
     {
         unit: 'Brightgate Flats · 2A',
         tenant: 'Jonah Kessler',
         ends: 'Aug 19, 2026',
-        rent: '$1,620',
+        rent: 1620,
     },
     {
         unit: 'Meridian Court · 11',
         tenant: 'Aisha Bello',
         ends: 'Aug 27, 2026',
-        rent: '$2,100',
+        rent: 2100,
     },
 ];
 
@@ -193,6 +194,7 @@ function KpiCard({
 }
 
 export default function Dashboard() {
+    const { name, currency, timezone } = usePage().props;
     const [range, setRange] = useState<'6m' | '1y'>('6m');
     const data = range === '6m' ? COLLECTIONS_6M : COLLECTIONS_1Y;
 
@@ -207,11 +209,12 @@ export default function Dashboard() {
                     </h1>
                     <p className="mt-1 text-[13px] text-text-secondary">
                         Your portfolio at a glance for{' '}
-                        {new Date().toLocaleDateString('en-US', {
+                        {new Date().toLocaleDateString(undefined, {
                             weekday: 'long',
                             month: 'long',
                             day: 'numeric',
                             year: 'numeric',
+                            timeZone: timezone,
                         })}
                     </p>
                 </div>
@@ -268,7 +271,7 @@ export default function Dashboard() {
                 <KpiCard
                     label="Rent collected (MTD)"
                     icon={CreditCard}
-                    value="$312,480"
+                    value={formatCurrency(312480, currency)}
                     footer={
                         <>
                             <span className="inline-flex items-center gap-0.5 font-bold text-success">
@@ -285,7 +288,7 @@ export default function Dashboard() {
                     label="Overdue balances"
                     icon={CreditCard}
                     tone="danger"
-                    value="$18,240"
+                    value={formatCurrency(18240, currency)}
                     footer={
                         <>
                             <span className="inline-flex items-center gap-0.5 font-bold text-success">
@@ -395,7 +398,10 @@ export default function Dashboard() {
                                                 | readonly (number | string)[]
                                                 | undefined,
                                         ) => [
-                                            `$${Number(value).toLocaleString()}`,
+                                            formatCurrency(
+                                                Number(value),
+                                                currency,
+                                            ),
                                             'Collected',
                                         ]}
                                         contentStyle={{
@@ -473,7 +479,10 @@ export default function Dashboard() {
                                                 {row.ends}
                                             </td>
                                             <td className="border-b border-border-soft py-3 tabular-nums last:border-0">
-                                                {row.rent}
+                                                {formatCurrency(
+                                                    row.rent,
+                                                    currency,
+                                                )}
                                             </td>
                                             <td className="border-b border-border-soft py-3 text-right last:border-0">
                                                 <Button
@@ -558,7 +567,7 @@ export default function Dashboard() {
             </div>
 
             <div className="mt-10 border-t border-border-soft pt-4.5 text-center text-[11.5px] text-text-tertiary">
-                Steward · placeholder data, not yet connected to Properties,
+                {name} · placeholder data, not yet connected to Properties,
                 Leases, or Payments
             </div>
         </>
