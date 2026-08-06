@@ -92,6 +92,14 @@ class User extends Authenticatable
     }
 
     /**
+     * @return HasMany<Property, $this>
+     */
+    public function properties(): HasMany
+    {
+        return $this->hasMany(Property::class, 'landlord_id');
+    }
+
+    /**
      * @return HasMany<Message, $this>
      */
     public function sentMessages(): HasMany

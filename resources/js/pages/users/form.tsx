@@ -41,9 +41,15 @@ type PageProps = {
     user?: UserFormRow;
     roles: Option[];
     statuses: Option[];
+    defaultRole?: string | null;
 };
 
-export default function UserForm({ user, roles, statuses }: PageProps) {
+export default function UserForm({
+    user,
+    roles,
+    statuses,
+    defaultRole,
+}: PageProps) {
     const { name: appName } = usePage().props;
     const isEdit = Boolean(user);
     const [existingDocRemoved, setExistingDocRemoved] = useState(false);
@@ -53,7 +59,7 @@ export default function UserForm({ user, roles, statuses }: PageProps) {
         {
             name: user?.name ?? '',
             email: user?.email ?? '',
-            role: user?.role ?? roles[0]?.value ?? '',
+            role: user?.role ?? defaultRole ?? roles[0]?.value ?? '',
             status: user?.status ?? statuses[0]?.value,
             landlord_id_number: user?.landlord_id_number ?? '',
             landlord_address: user?.landlord_address ?? '',

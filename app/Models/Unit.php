@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\LeaseStatus;
 use App\Enums\UnitStatus;
 use Database\Factories\UnitFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -117,5 +118,21 @@ class Unit extends Model implements HasMedia
         return $this->belongsToMany(UnitFeature::class, 'unit_feature_unit')
             ->using(UnitFeatureUnit::class)
             ->withPivot('quantity');
+    }
+
+    /**
+     * @return HasMany<Lease, $this>
+     */
+    public function leases(): HasMany
+    {
+        return $this->hasMany(Lease::class);
+    }
+
+    /**
+     * @return HasOne<Lease, $this>
+     */
+    public function currentLease(): HasOne
+    {
+        return $this->hasOne(Lease::class)->where('status', LeaseStatus::Active);
     }
 }

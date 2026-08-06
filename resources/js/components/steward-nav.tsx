@@ -28,10 +28,13 @@ import { usePermissions } from '@/hooks/use-permissions';
 import { cn } from '@/lib/utils';
 import { dashboard } from '@/routes';
 import companySettings from '@/routes/company-settings';
+import landlords from '@/routes/landlords';
+import leases from '@/routes/leases';
 import logs from '@/routes/logs';
 import messages from '@/routes/messages';
 import properties from '@/routes/properties';
 import roles from '@/routes/roles';
+import tenants from '@/routes/tenants';
 import units from '@/routes/units';
 import users from '@/routes/users';
 
@@ -64,7 +67,13 @@ export function useStewardNavGroups(unreadMessagesCount = 0): NavGroup[] {
         {
             label: 'Portfolio',
             items: [
-                { title: 'Landlords', icon: KeyRound, count: 32 },
+                {
+                    title: 'Landlords',
+                    icon: KeyRound,
+                    href: can('landlords.view')
+                        ? landlords.index()
+                        : undefined,
+                },
                 {
                     title: 'Properties',
                     icon: Building2,
@@ -77,7 +86,11 @@ export function useStewardNavGroups(unreadMessagesCount = 0): NavGroup[] {
                     icon: DoorOpen,
                     href: can('units.view') ? units.all() : undefined,
                 },
-                { title: 'Leases', icon: FileText, count: 214 },
+                {
+                    title: 'Leases',
+                    icon: FileText,
+                    href: can('leases.view') ? leases.index() : undefined,
+                },
             ],
         },
         {
@@ -100,7 +113,11 @@ export function useStewardNavGroups(unreadMessagesCount = 0): NavGroup[] {
         {
             label: 'People',
             items: [
-                { title: 'Tenants', icon: UsersIcon },
+                {
+                    title: 'Tenants',
+                    icon: UsersIcon,
+                    href: can('tenants.view') ? tenants.index() : undefined,
+                },
                 {
                     title: 'Users',
                     icon: IdCard,

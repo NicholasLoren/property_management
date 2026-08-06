@@ -147,11 +147,16 @@ class UserController extends Controller
         return $query;
     }
 
-    public function create(): Response
+    public function create(Request $request): Response
     {
+        $roles = $this->roleOptions();
+        $requestedRole = $request->string('role')->value();
+        $defaultRole = collect($roles)->contains('value', $requestedRole) ? $requestedRole : null;
+
         return Inertia::render('users/form', [
-            'roles' => $this->roleOptions(),
+            'roles' => $roles,
             'statuses' => $this->statusOptions(),
+            'defaultRole' => $defaultRole,
         ]);
     }
 

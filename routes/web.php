@@ -21,4 +21,7 @@ require __DIR__.'/logs.php';
 require __DIR__.'/messages.php';
 require __DIR__.'/properties.php';
 require __DIR__.'/units.php';
+require __DIR__.'/tenants.php';
+require __DIR__.'/leases.php';
+require __DIR__.'/landlords.php';
 require __DIR__.'/geocoding.php';

@@ -52,6 +52,21 @@ class PermissionSeeder extends Seeder
                 ['name' => 'units.edit', 'label' => 'Edit units'],
                 ['name' => 'units.delete', 'label' => 'Delete units'],
             ],
+            'tenants' => [
+                ['name' => 'tenants.view', 'label' => 'View tenants'],
+                ['name' => 'tenants.add', 'label' => 'Add tenants'],
+                ['name' => 'tenants.edit', 'label' => 'Edit tenants'],
+                ['name' => 'tenants.delete', 'label' => 'Delete tenants'],
+            ],
+            'leases' => [
+                ['name' => 'leases.view', 'label' => 'View leases'],
+                ['name' => 'leases.add', 'label' => 'Add leases'],
+                ['name' => 'leases.edit', 'label' => 'Edit leases'],
+                ['name' => 'leases.delete', 'label' => 'Delete leases'],
+            ],
+            'landlords' => [
+                ['name' => 'landlords.view', 'label' => 'View landlords'],
+            ],
         ];
 
         foreach ($catalog as $categoryName => $permissions) {
