@@ -14,9 +14,14 @@ use App\Settings\GeneralSettings;
  */
 class Branding
 {
+    /**
+     * The short display name for UI chrome — sidebar, browser tab title,
+     * PWA manifest — distinct from `company_name`, which is the formal
+     * business name used on invoices, receipts, and exported reports.
+     */
     public static function name(): string
     {
-        return app(GeneralSettings::class)->company_name;
+        return app(GeneralSettings::class)->app_name;
     }
 
     public static function themeColor(): string

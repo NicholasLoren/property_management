@@ -1,4 +1,4 @@
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, usePage } from '@inertiajs/react';
 import type { FormEvent } from 'react';
 import { useState } from 'react';
 import { Breadcrumbs } from '@/components/breadcrumbs';
@@ -9,6 +9,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PhotoGalleryInput } from '@/components/ui/photo-gallery-input';
+import { RequiredAsterisk } from '@/components/ui/required-asterisk';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import {
     Select,
@@ -52,6 +53,7 @@ export default function PropertyForm({
     amenities,
     types,
 }: PageProps) {
+    const { limits } = usePage().props;
     const isEdit = Boolean(property);
     const [removedPhotoIds, setRemovedPhotoIds] = useState<number[]>([]);
 
@@ -136,7 +138,10 @@ export default function PropertyForm({
             >
                 <div className="grid gap-4 sm:grid-cols-2">
                     <div className="grid gap-1.5">
-                        <Label htmlFor="landlord_id">Landlord</Label>
+                        <Label htmlFor="landlord_id">
+                            Landlord
+                            <RequiredAsterisk />
+                        </Label>
                         <SearchableSelect
                             id="landlord_id"
                             value={data.landlord_id}
@@ -151,7 +156,10 @@ export default function PropertyForm({
                     </div>
 
                     <div className="grid gap-1.5">
-                        <Label htmlFor="type">Type</Label>
+                        <Label htmlFor="type">
+                            Type
+                            <RequiredAsterisk />
+                        </Label>
                         <Select
                             value={data.type}
                             onValueChange={(value) =>
@@ -179,7 +187,10 @@ export default function PropertyForm({
                     </div>
 
                     <div className="grid gap-1.5">
-                        <Label htmlFor="name">Name</Label>
+                        <Label htmlFor="name">
+                            Name
+                            <RequiredAsterisk />
+                        </Label>
                         <Input
                             id="name"
                             autoFocus
@@ -194,6 +205,7 @@ export default function PropertyForm({
                 <div className="mt-5 border-t border-border-soft pt-4">
                     <Label htmlFor="address" className="mb-2">
                         Address
+                        <RequiredAsterisk />
                     </Label>
                     <AddressMapPicker
                         address={data.address}
@@ -261,6 +273,7 @@ export default function PropertyForm({
                         files={data.photos}
                         onChange={(files) => setField('photos', files)}
                         error={errors.photos}
+                        maxSizeMb={limits.photoMaxMb}
                     />
                 </div>
 

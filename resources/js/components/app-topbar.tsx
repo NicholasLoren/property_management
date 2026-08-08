@@ -1,5 +1,12 @@
 import { Link, usePage } from '@inertiajs/react';
-import { Bell, Download, Menu, Moon, Settings as SettingsIcon, Sun } from 'lucide-react';
+import {
+    Bell,
+    Download,
+    Menu,
+    Moon,
+    Settings as SettingsIcon,
+    Sun,
+} from 'lucide-react';
 import { CommandPalette } from '@/components/command-palette';
 import { Button } from '@/components/ui/button';
 import {
@@ -7,13 +14,13 @@ import {
     DropdownMenuContent,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { EntityAvatar } from '@/components/ui/entity-avatar';
 import { UserMenuContent } from '@/components/user-menu-content';
 import { useAppearance } from '@/hooks/use-appearance';
-import { useInitials } from '@/hooks/use-initials';
 import { usePermissions } from '@/hooks/use-permissions';
 import { usePwaInstall } from '@/hooks/use-pwa-install';
-import { avatarTone, avatarToneClass } from '@/lib/avatar-tone';
 import companySettings from '@/routes/company-settings';
+import notifications from '@/routes/notifications';
 import { edit as editProfile } from '@/routes/profile';
 
 export function AppTopbar({
@@ -21,9 +28,8 @@ export function AppTopbar({
 }: {
     onOpenMobileNav?: () => void;
 }) {
-    const { auth } = usePage().props;
+    const { auth, unreadNotificationsCount } = usePage().props;
     const { can } = usePermissions();
-    const getInitials = useInitials();
     const { resolvedAppearance, updateAppearance } = useAppearance();
     const isDark = resolvedAppearance === 'dark';
     const { canInstall, promptInstall } = usePwaInstall();
@@ -73,12 +79,17 @@ export function AppTopbar({
                         <Moon className="size-[15px]" />
                     )}
                 </button>
-                <span className="relative">
-                    <span className="flex size-[30px] items-center justify-center rounded-[6px] text-text-secondary">
-                        <Bell className="size-[15px]" />
-                    </span>
-                    <span className="absolute top-1.5 right-1.5 size-1.5 rounded-full border-[1.5px] border-surface bg-destructive" />
-                </span>
+                <Link
+                    href={notifications.index()}
+                    aria-label="Notifications"
+                    title="Notifications"
+                    className="relative flex size-[30px] items-center justify-center rounded-[6px] text-text-secondary hover:bg-secondary hover:text-foreground"
+                >
+                    <Bell className="size-[15px]" />
+                    {unreadNotificationsCount > 0 && (
+                        <span className="absolute top-1.5 right-1.5 size-1.5 rounded-full border-[1.5px] border-surface bg-destructive" />
+                    )}
+                </Link>
                 {auth.user && (
                     <Link
                         href={
@@ -94,11 +105,13 @@ export function AppTopbar({
                 {auth.user && (
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                            <button
-                                type="button"
-                                className={`ml-1.5 flex size-[26px] shrink-0 items-center justify-center rounded-full font-display text-[11px] font-bold text-accent-contrast ${avatarToneClass[avatarTone(auth.user.id)]}`}
-                            >
-                                {getInitials(auth.user.name)}
+                            <button type="button" className="ml-1.5 shrink-0">
+                                <EntityAvatar
+                                    name={auth.user.name}
+                                    seed={auth.user.id}
+                                    imageUrl={auth.user.avatar}
+                                    className="size-[26px] text-[11px]"
+                                />
                             </button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent

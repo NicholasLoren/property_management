@@ -4,9 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Enums\BillingPeriod;
 use App\Enums\LeaseStatus;
+use App\Enums\PaymentStatus;
 use App\Http\Requests\Leases\StoreLeaseRequest;
 use App\Http\Requests\Leases\UpdateLeaseRequest;
 use App\Models\Lease;
+use App\Models\Payment;
 use App\Models\Tenant;
 use App\Models\Unit;
 use Illuminate\Database\Eloquent\Builder;
@@ -118,6 +120,8 @@ class LeaseController extends Controller
             'end_date' => $request->validated('end_date'),
             'rent_amount' => $request->validated('rent_amount'),
             'billing_period' => $request->validated('billing_period'),
+            'billing_day' => $request->validated('billing_day'),
+            'custom_interval_months' => $request->validated('custom_interval_months'),
             'security_deposit' => $request->validated('security_deposit'),
             'status' => $request->validated('status'),
             'notes' => $request->validated('notes'),
@@ -151,6 +155,8 @@ class LeaseController extends Controller
             'end_date' => $request->validated('end_date'),
             'rent_amount' => $request->validated('rent_amount'),
             'billing_period' => $request->validated('billing_period'),
+            'billing_day' => $request->validated('billing_day'),
+            'custom_interval_months' => $request->validated('custom_interval_months'),
             'security_deposit' => $request->validated('security_deposit'),
             'status' => $request->validated('status'),
             'notes' => $request->validated('notes'),
@@ -171,7 +177,12 @@ class LeaseController extends Controller
 
     public function show(Lease $lease): Response
     {
-        $lease->load(['unit.property', 'tenants', 'media']);
+        $lease->load([
+            'unit.property',
+            'tenants',
+            'media',
+            'payments' => fn ($query) => $query->orderByDesc('payment_date'),
+        ]);
 
         return Inertia::render('leases/show', [
             'lease' => $this->transformForShow($lease),
@@ -257,6 +268,8 @@ class LeaseController extends Controller
             'end_date' => $lease->end_date->toDateString(),
             'rent_amount' => (string) $lease->rent_amount,
             'billing_period' => $lease->billing_period->value,
+            'billing_day' => $lease->billing_day,
+            'custom_interval_months' => $lease->custom_interval_months,
             'security_deposit' => $lease->security_deposit !== null ? (string) $lease->security_deposit : null,
             'status' => $lease->status->value,
             'notes' => $lease->notes,
@@ -273,6 +286,7 @@ class LeaseController extends Controller
     private function transformForShow(Lease $lease): array
     {
         $document = $lease->getFirstMedia('document');
+        $completedPayments = $lease->payments->where('status', PaymentStatus::Completed);
 
         return [
             'id' => $lease->id,
@@ -291,6 +305,7 @@ class LeaseController extends Controller
             'end_date' => $lease->end_date->toDateString(),
             'rent_amount' => (string) $lease->rent_amount,
             'billing_period_label' => $lease->billing_period->label(),
+            'billing_day' => $lease->billing_day,
             'security_deposit' => $lease->security_deposit !== null ? (string) $lease->security_deposit : null,
             'status' => $lease->status->value,
             'status_label' => $lease->status->label(),
@@ -299,6 +314,19 @@ class LeaseController extends Controller
                 'name' => $document->file_name,
                 'url' => $document->getUrl(),
             ] : null,
+            'payments' => $lease->payments->map(fn (Payment $payment): array => [
+                'id' => $payment->id,
+                'amount' => (string) $payment->amount,
+                'payment_date' => $payment->payment_date->toDateString(),
+                'method_label' => $payment->method->label(),
+                'status' => $payment->status->value,
+                'status_label' => $payment->status->label(),
+                'reference' => $payment->reference,
+            ])->all(),
+            'payments_summary' => [
+                'total_collected' => (string) $completedPayments->sum('amount'),
+                'payments_count' => $completedPayments->count(),
+            ],
             'created_at' => $lease->created_at?->toIso8601String(),
         ];
     }

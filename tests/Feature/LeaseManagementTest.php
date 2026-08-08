@@ -50,6 +50,7 @@ class LeaseManagementTest extends TestCase
             'end_date' => '2026-12-31',
             'rent_amount' => 500000,
             'billing_period' => 'monthly',
+            'billing_day' => 1,
             'security_deposit' => 500000,
             'status' => LeaseStatus::Draft->value,
             'notes' => null,

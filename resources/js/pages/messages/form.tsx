@@ -7,6 +7,7 @@ import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { RequiredAsterisk } from '@/components/ui/required-asterisk';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import {
     Select,
@@ -95,7 +96,10 @@ export default function MessageForm({ users, roles, canBroadcast }: PageProps) {
             >
                 <div className="grid gap-4">
                     <div className="grid gap-1.5">
-                        <Label>Type</Label>
+                        <Label>
+                            Type
+                            <RequiredAsterisk />
+                        </Label>
                         <div className="inline-flex w-fit gap-0.5 rounded-full border border-border-soft bg-secondary p-[3px]">
                             <button
                                 type="button"
@@ -130,7 +134,10 @@ export default function MessageForm({ users, roles, canBroadcast }: PageProps) {
 
                     {data.type === 'personal' ? (
                         <div className="grid gap-1.5">
-                            <Label htmlFor="recipient_user_id">To</Label>
+                            <Label htmlFor="recipient_user_id">
+                                To
+                                <RequiredAsterisk />
+                            </Label>
                             <SearchableSelect
                                 id="recipient_user_id"
                                 value={
@@ -156,6 +163,7 @@ export default function MessageForm({ users, roles, canBroadcast }: PageProps) {
                             <div className="grid gap-1.5">
                                 <Label htmlFor="recipient_scope">
                                     Audience
+                                    <RequiredAsterisk />
                                 </Label>
                                 <Select
                                     value={data.recipient_scope ?? undefined}
@@ -190,7 +198,10 @@ export default function MessageForm({ users, roles, canBroadcast }: PageProps) {
 
                             {data.recipient_scope === 'role' && (
                                 <div className="grid gap-1.5">
-                                    <Label htmlFor="recipient_role">Role</Label>
+                                    <Label htmlFor="recipient_role">
+                                        Role
+                                        <RequiredAsterisk />
+                                    </Label>
                                     <Select
                                         value={data.recipient_role ?? undefined}
                                         onValueChange={(value) =>
@@ -223,7 +234,10 @@ export default function MessageForm({ users, roles, canBroadcast }: PageProps) {
                     )}
 
                     <div className="grid gap-1.5">
-                        <Label htmlFor="subject">Subject</Label>
+                        <Label htmlFor="subject">
+                            Subject
+                            <RequiredAsterisk />
+                        </Label>
                         <Input
                             id="subject"
                             value={data.subject}
@@ -237,7 +251,10 @@ export default function MessageForm({ users, roles, canBroadcast }: PageProps) {
                     </div>
 
                     <div className="grid gap-1.5">
-                        <Label htmlFor="body">Message</Label>
+                        <Label htmlFor="body">
+                            Message
+                            <RequiredAsterisk />
+                        </Label>
                         <Textarea
                             id="body"
                             rows={8}

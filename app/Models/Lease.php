@@ -40,7 +40,7 @@ use Spatie\MediaLibrary\InteractsWithMedia;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['unit_id', 'start_date', 'end_date', 'rent_amount', 'billing_period', 'security_deposit', 'status', 'notes'])]
+#[Fillable(['unit_id', 'start_date', 'end_date', 'rent_amount', 'billing_period', 'billing_day', 'custom_interval_months', 'security_deposit', 'status', 'notes'])]
 #[ObservedBy(LeaseObserver::class)]
 class Lease extends Model implements HasMedia
 {
@@ -57,9 +57,26 @@ class Lease extends Model implements HasMedia
             'end_date' => 'date',
             'rent_amount' => 'decimal:2',
             'billing_period' => BillingPeriod::class,
+            'billing_day' => 'integer',
+            'custom_interval_months' => 'integer',
             'security_deposit' => 'decimal:2',
             'status' => LeaseStatus::class,
         ];
+    }
+
+    /**
+     * The number of months each billing cycle spans, regardless of which
+     * `billing_period` preset (or custom interval) is in use — the single
+     * place schedule generation reads cadence from.
+     */
+    public function billingIntervalMonths(): int
+    {
+        return match ($this->billing_period) {
+            BillingPeriod::Monthly => 1,
+            BillingPeriod::Quarterly => 3,
+            BillingPeriod::Yearly => 12,
+            BillingPeriod::Custom => $this->custom_interval_months,
+        };
     }
 
     public function getActivitylogOptions(): LogOptions
@@ -111,6 +128,14 @@ class Lease extends Model implements HasMedia
     public function payments(): HasMany
     {
         return $this->hasMany(Payment::class);
+    }
+
+    /**
+     * @return HasMany<PaymentSchedule, $this>
+     */
+    public function paymentSchedules(): HasMany
+    {
+        return $this->hasMany(PaymentSchedule::class);
     }
 
     /**

@@ -19,6 +19,8 @@ export const tenantSchema = z.object({
     notes: z.string().max(5000).optional().nullable(),
     id_document: z.instanceof(File).optional().nullable(),
     id_document_remove: z.boolean().optional(),
+    avatar: z.instanceof(File).optional().nullable(),
+    avatar_remove: z.boolean().optional(),
 });
 
 export type TenantFormValues = z.infer<typeof tenantSchema>;

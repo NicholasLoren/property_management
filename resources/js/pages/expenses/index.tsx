@@ -24,6 +24,7 @@ import type {
     ActiveExpenseRow,
     TrashExpenseRow,
 } from '@/pages/expenses/columns';
+import { ExpenseDetailsSheet } from '@/pages/expenses/expense-details-sheet';
 import expenses from '@/routes/expenses';
 import type { ExpenseRow } from '@/types/transactions';
 
@@ -69,6 +70,9 @@ export default function ExpensesIndex({
     const [search, setSearch] = useState(filters.search);
     const [syncedSearch, setSyncedSearch] = useState(filters.search);
     const searchDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const [viewingExpenseId, setViewingExpenseId] = useState<number | null>(
+        null,
+    );
 
     if (filters.search !== syncedSearch) {
         setSyncedSearch(filters.search);
@@ -82,8 +86,12 @@ export default function ExpensesIndex({
             expenses.index().url,
             {
                 search: next.search || undefined,
-                category_id: next.category_id.length ? next.category_id : undefined,
-                property_id: next.property_id.length ? next.property_id : undefined,
+                category_id: next.category_id.length
+                    ? next.category_id
+                    : undefined,
+                property_id: next.property_id.length
+                    ? next.property_id
+                    : undefined,
                 sort: next.sort,
                 dir: next.dir,
                 per_page: next.per_page,
@@ -147,15 +155,23 @@ export default function ExpensesIndex({
     }
 
     function restore(expense: ExpenseRow) {
-        router.patch(expenses.restore(expense).url, {}, { preserveScroll: true });
+        router.patch(
+            expenses.restore(expense).url,
+            {},
+            { preserveScroll: true },
+        );
     }
 
     function forceDelete(expense: ExpenseRow) {
-        if (!confirm('Permanently delete this expense? This cannot be undone.')) {
+        if (
+            !confirm('Permanently delete this expense? This cannot be undone.')
+        ) {
             return;
         }
 
-        router.delete(expenses.forceDelete(expense).url, { preserveScroll: true });
+        router.delete(expenses.forceDelete(expense).url, {
+            preserveScroll: true,
+        });
     }
 
     const canEdit = can('expenses.edit');
@@ -163,12 +179,22 @@ export default function ExpensesIndex({
 
     const activeColumns = useMemo(
         () =>
-            getExpenseColumns({ canEdit, canDelete, currency, onTrash: moveToTrash }),
+            getExpenseColumns({
+                canEdit,
+                canDelete,
+                currency,
+                onTrash: moveToTrash,
+                onView: (expense) => setViewingExpenseId(expense.id),
+            }),
         [canEdit, canDelete, currency],
     );
 
     const trashColumns = useMemo(
-        () => getExpenseTrashColumns({ onRestore: restore, onForceDelete: forceDelete }),
+        () =>
+            getExpenseTrashColumns({
+                onRestore: restore,
+                onForceDelete: forceDelete,
+            }),
         [],
     );
 
@@ -215,9 +241,14 @@ export default function ExpensesIndex({
                         {categories.map((category) => (
                             <DropdownMenuCheckboxItem
                                 key={category.value}
-                                checked={filters.category_id.includes(category.value)}
+                                checked={filters.category_id.includes(
+                                    category.value,
+                                )}
                                 onCheckedChange={(checked) =>
-                                    toggleCategoryFilter(category.value, checked === true)
+                                    toggleCategoryFilter(
+                                        category.value,
+                                        checked === true,
+                                    )
                                 }
                                 onSelect={(e) => e.preventDefault()}
                             >
@@ -229,9 +260,14 @@ export default function ExpensesIndex({
                         {properties.map((property) => (
                             <DropdownMenuCheckboxItem
                                 key={property.value}
-                                checked={filters.property_id.includes(property.value)}
+                                checked={filters.property_id.includes(
+                                    property.value,
+                                )}
                                 onCheckedChange={(checked) =>
-                                    togglePropertyFilter(property.value, checked === true)
+                                    togglePropertyFilter(
+                                        property.value,
+                                        checked === true,
+                                    )
                                 }
                                 onSelect={(e) => e.preventDefault()}
                             >
@@ -271,7 +307,9 @@ export default function ExpensesIndex({
                 expenses.index().url,
                 {
                     search: filters.search || undefined,
-                    category_id: filters.category_id.length ? filters.category_id : undefined,
+                    category_id: filters.category_id.length
+                        ? filters.category_id
+                        : undefined,
                     property_id: filters.property_id.length
                         ? filters.property_id
                         : undefined,
@@ -329,8 +367,14 @@ export default function ExpensesIndex({
                                 type="button"
                                 onClick={() =>
                                     chip.group === 'category_id'
-                                        ? toggleCategoryFilter(chip.value, false)
-                                        : togglePropertyFilter(chip.value, false)
+                                        ? toggleCategoryFilter(
+                                              chip.value,
+                                              false,
+                                          )
+                                        : togglePropertyFilter(
+                                              chip.value,
+                                              false,
+                                          )
                                 }
                                 className="rounded-full p-0.5 hover:bg-black/10"
                             >
@@ -358,7 +402,10 @@ export default function ExpensesIndex({
                         title: 'No expenses yet',
                         description: 'Log your first cost against a property.',
                         action: can('expenses.add')
-                            ? { label: 'Add your first expense', href: expenses.create().url }
+                            ? {
+                                  label: 'Add your first expense',
+                                  href: expenses.create().url,
+                              }
                             : undefined,
                     }}
                     {...sharedTableProps}
@@ -371,11 +418,17 @@ export default function ExpensesIndex({
                     emptyState={{
                         icon: TrendingDown,
                         title: 'Trash is empty',
-                        description: 'Expenses you move to trash will show up here.',
+                        description:
+                            'Expenses you move to trash will show up here.',
                     }}
                     {...sharedTableProps}
                 />
             )}
+
+            <ExpenseDetailsSheet
+                expenseId={viewingExpenseId}
+                onOpenChange={(open) => !open && setViewingExpenseId(null)}
+            />
         </>
     );
 }

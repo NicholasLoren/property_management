@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { FileDropzone } from '@/components/ui/file-dropzone';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { RequiredAsterisk } from '@/components/ui/required-asterisk';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import {
     Select,
@@ -33,7 +34,9 @@ type LeaseFormRow = {
     start_date: string;
     end_date: string;
     rent_amount: string;
-    billing_period: 'monthly' | 'quarterly' | 'yearly';
+    billing_period: 'monthly' | 'quarterly' | 'yearly' | 'custom';
+    billing_day: number;
+    custom_interval_months: number | null;
     security_deposit: string | null;
     status: 'draft' | 'active' | 'ended' | 'terminated';
     notes: string | null;
@@ -66,6 +69,8 @@ export default function LeaseForm({
             end_date: lease?.end_date ?? '',
             rent_amount: lease?.rent_amount ?? '',
             billing_period: lease?.billing_period ?? 'monthly',
+            billing_day: lease?.billing_day ?? 1,
+            custom_interval_months: lease?.custom_interval_months ?? null,
             security_deposit: lease?.security_deposit ?? '',
             status: lease?.status ?? 'draft',
             notes: lease?.notes ?? '',
@@ -101,11 +106,16 @@ export default function LeaseForm({
 
     const availableTenants = tenants
         .filter((tenant) => !data.tenant_ids.includes(tenant.value))
-        .map((tenant) => ({ value: String(tenant.value), label: tenant.label }));
+        .map((tenant) => ({
+            value: String(tenant.value),
+            label: tenant.label,
+        }));
 
     const selectedTenants = data.tenant_ids
         .map((id) => tenants.find((tenant) => tenant.value === id))
-        .filter((tenant): tenant is { value: number; label: string } => Boolean(tenant));
+        .filter((tenant): tenant is { value: number; label: string } =>
+            Boolean(tenant),
+        );
 
     return (
         <>
@@ -117,7 +127,9 @@ export default function LeaseForm({
                         { title: 'Leases', href: leases.index() },
                         {
                             title: isEdit ? 'Edit lease' : 'Add lease',
-                            href: isEdit ? leases.edit(lease!) : leases.create(),
+                            href: isEdit
+                                ? leases.edit(lease!)
+                                : leases.create(),
                         },
                     ]}
                 />
@@ -141,7 +153,10 @@ export default function LeaseForm({
             >
                 <div className="grid gap-4 sm:grid-cols-2">
                     <div className="grid gap-1.5">
-                        <Label htmlFor="unit_id">Unit</Label>
+                        <Label htmlFor="unit_id">
+                            Unit
+                            <RequiredAsterisk />
+                        </Label>
                         {isEdit ? (
                             <div className="flex h-9 items-center rounded-md border border-border-soft bg-secondary px-3 text-sm text-text-secondary">
                                 {lease!.unit_label}
@@ -164,14 +179,14 @@ export default function LeaseForm({
                     </div>
 
                     <div className="grid gap-1.5">
-                        <Label htmlFor="status">Status</Label>
+                        <Label htmlFor="status">
+                            Status
+                            <RequiredAsterisk />
+                        </Label>
                         <Select
                             value={data.status}
                             onValueChange={(value) =>
-                                setField(
-                                    'status',
-                                    value as typeof data.status,
-                                )
+                                setField('status', value as typeof data.status)
                             }
                         >
                             <SelectTrigger id="status" className="w-full">
@@ -192,20 +207,38 @@ export default function LeaseForm({
                     </div>
 
                     <div className="grid gap-1.5">
-                        <Label htmlFor="start_date">Start date</Label>
+                        <Label htmlFor="start_date">
+                            Start date
+                            <RequiredAsterisk />
+                        </Label>
                         <Input
                             id="start_date"
                             type="date"
                             value={data.start_date}
-                            onChange={(e) =>
-                                setField('start_date', e.target.value)
-                            }
+                            onChange={(e) => {
+                                const value = e.target.value;
+                                setField('start_date', value);
+
+                                // New leases default their due day to the
+                                // move-in day — editable below, but this
+                                // saves a step for the common case where
+                                // they're the same.
+                                if (!isEdit && value) {
+                                    setField(
+                                        'billing_day',
+                                        new Date(value).getUTCDate(),
+                                    );
+                                }
+                            }}
                         />
                         <InputError message={errors.start_date} />
                     </div>
 
                     <div className="grid gap-1.5">
-                        <Label htmlFor="end_date">End date</Label>
+                        <Label htmlFor="end_date">
+                            End date
+                            <RequiredAsterisk />
+                        </Label>
                         <Input
                             id="end_date"
                             type="date"
@@ -219,7 +252,10 @@ export default function LeaseForm({
                     </div>
 
                     <div className="grid gap-1.5">
-                        <Label htmlFor="rent_amount">Rent amount</Label>
+                        <Label htmlFor="rent_amount">
+                            Rent amount
+                            <RequiredAsterisk />
+                        </Label>
                         <Input
                             id="rent_amount"
                             inputMode="decimal"
@@ -233,7 +269,10 @@ export default function LeaseForm({
                     </div>
 
                     <div className="grid gap-1.5">
-                        <Label htmlFor="billing_period">Billing period</Label>
+                        <Label htmlFor="billing_period">
+                            Billing period
+                            <RequiredAsterisk />
+                        </Label>
                         <Select
                             value={data.billing_period}
                             onValueChange={(value) =>
@@ -263,6 +302,59 @@ export default function LeaseForm({
                         <InputError message={errors.billing_period} />
                     </div>
 
+                    {data.billing_period === 'custom' && (
+                        <div className="grid gap-1.5">
+                            <Label htmlFor="custom_interval_months">
+                                Bill every…
+                            </Label>
+                            <div className="flex items-center gap-2">
+                                <Input
+                                    id="custom_interval_months"
+                                    type="number"
+                                    min={1}
+                                    max={24}
+                                    className="w-20"
+                                    value={data.custom_interval_months ?? ''}
+                                    onChange={(e) =>
+                                        setField(
+                                            'custom_interval_months',
+                                            e.target.value
+                                                ? Number(e.target.value)
+                                                : null,
+                                        )
+                                    }
+                                />
+                                <span className="text-sm text-text-secondary">
+                                    months
+                                </span>
+                            </div>
+                            <InputError
+                                message={errors.custom_interval_months}
+                            />
+                        </div>
+                    )}
+
+                    <div className="grid gap-1.5">
+                        <Label htmlFor="billing_day">
+                            Rent due day
+                            <RequiredAsterisk />{' '}
+                            <span className="font-normal text-text-tertiary">
+                                (day of month)
+                            </span>
+                        </Label>
+                        <Input
+                            id="billing_day"
+                            type="number"
+                            min={1}
+                            max={31}
+                            value={data.billing_day || ''}
+                            onChange={(e) =>
+                                setField('billing_day', Number(e.target.value))
+                            }
+                        />
+                        <InputError message={errors.billing_day} />
+                    </div>
+
                     <div className="grid gap-1.5">
                         <Label htmlFor="security_deposit">
                             Security deposit{' '}
@@ -284,7 +376,10 @@ export default function LeaseForm({
                 </div>
 
                 <div className="mt-5 border-t border-border-soft pt-4">
-                    <Label className="mb-2">Tenants</Label>
+                    <Label className="mb-2">
+                        Tenants
+                        <RequiredAsterisk />
+                    </Label>
                     <SearchableSelect
                         value={null}
                         onChange={addTenant}

@@ -29,6 +29,11 @@ class StoreLeaseRequest extends FormRequest
             'end_date' => ['required', 'date', 'after:start_date'],
             'rent_amount' => ['required', 'numeric', 'min:0'],
             'billing_period' => ['required', Rule::enum(BillingPeriod::class)],
+            'billing_day' => ['required', 'integer', 'between:1,31'],
+            'custom_interval_months' => [
+                Rule::requiredIf($this->input('billing_period') === BillingPeriod::Custom->value),
+                'nullable', 'integer', 'between:1,24',
+            ],
             'security_deposit' => ['nullable', 'numeric', 'min:0'],
             'status' => [
                 'required',

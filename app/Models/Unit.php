@@ -32,13 +32,14 @@ use Spatie\MediaLibrary\InteractsWithMedia;
  * @property string $name
  * @property string|null $size
  * @property UnitStatus $status
+ * @property string|null $notes
  * @property Carbon|null $deleted_at
  * @property int|null $deleted_by
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  * @property-read UnitFeatureUnit|null $pivot
  */
-#[Fillable(['code', 'property_id', 'unit_type_id', 'name', 'size', 'status'])]
+#[Fillable(['code', 'property_id', 'unit_type_id', 'name', 'size', 'status', 'notes'])]
 class Unit extends Model implements HasMedia
 {
     /** @use HasFactory<UnitFactory> */

@@ -4,8 +4,10 @@ namespace App\Models;
 
 use App\Enums\PaymentMethod;
 use App\Enums\PaymentStatus;
+use App\Observers\PaymentObserver;
 use Database\Factories\PaymentFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -23,6 +25,7 @@ use Spatie\MediaLibrary\InteractsWithMedia;
  *
  * @property int $id
  * @property int $lease_id
+ * @property int|null $payment_schedule_id
  * @property int|null $tenant_id
  * @property string $amount
  * @property Carbon $payment_date
@@ -36,7 +39,8 @@ use Spatie\MediaLibrary\InteractsWithMedia;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['lease_id', 'tenant_id', 'amount', 'payment_date', 'method', 'status', 'reference', 'notes', 'created_by'])]
+#[Fillable(['lease_id', 'payment_schedule_id', 'tenant_id', 'amount', 'payment_date', 'method', 'status', 'reference', 'notes', 'created_by'])]
+#[ObservedBy(PaymentObserver::class)]
 class Payment extends Model implements HasMedia
 {
     /** @use HasFactory<PaymentFactory> */
@@ -78,6 +82,14 @@ class Payment extends Model implements HasMedia
     public function lease(): BelongsTo
     {
         return $this->belongsTo(Lease::class);
+    }
+
+    /**
+     * @return BelongsTo<PaymentSchedule, $this>
+     */
+    public function paymentSchedule(): BelongsTo
+    {
+        return $this->belongsTo(PaymentSchedule::class);
     }
 
     /**

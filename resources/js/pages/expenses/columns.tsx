@@ -1,6 +1,6 @@
 import { Link } from '@inertiajs/react';
 import type { ColumnDef } from '@tanstack/react-table';
-import { Pencil, Trash2, TrendingDown, Undo2, Wrench } from 'lucide-react';
+import { Eye, Pencil, Trash2, TrendingDown, Undo2, Wrench } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { formatCurrency } from '@/lib/currency';
@@ -64,6 +64,7 @@ export function getExpenseColumns(opts: {
     canDelete: boolean;
     currency: string;
     onTrash: (expense: ActiveExpenseRow) => void;
+    onView: (expense: ActiveExpenseRow) => void;
 }): ColumnDef<ActiveExpenseRow>[] {
     return [
         {
@@ -79,7 +80,9 @@ export function getExpenseColumns(opts: {
             meta: { label: 'Category' },
             cell: ({ row }) => (
                 <div className="flex items-center gap-1.5">
-                    <Badge variant="outline">{row.original.category_label}</Badge>
+                    <Badge variant="outline">
+                        {row.original.category_label}
+                    </Badge>
                     {row.original.is_from_maintenance && (
                         <span title="Created from a maintenance request">
                             <Wrench className="size-[13px] text-text-tertiary" />
@@ -117,6 +120,15 @@ export function getExpenseColumns(opts: {
 
                 return (
                     <div className="flex items-center justify-end gap-0.5">
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="size-8"
+                            title="View details"
+                            onClick={() => opts.onView(expense)}
+                        >
+                            <Eye className="size-[15px]" />
+                        </Button>
                         {opts.canEdit && (
                             <Button
                                 variant="ghost"

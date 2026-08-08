@@ -2,6 +2,7 @@ import { Head, Link, usePage } from '@inertiajs/react';
 import {
     Bell,
     Building2,
+    CalendarClock,
     Folder,
     Hash,
     MessageSquare,
@@ -16,6 +17,8 @@ import { FileDropzone } from '@/components/ui/file-dropzone';
 import { ImageCropDialog } from '@/components/ui/image-crop-dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { SearchableSelect } from '@/components/ui/searchable-select';
+import type { SearchableSelectOption } from '@/components/ui/searchable-select';
 import {
     Select,
     SelectContent,
@@ -29,6 +32,7 @@ import { useInertiaZodForm } from '@/hooks/use-inertia-zod-form';
 import { cn } from '@/lib/utils';
 import companySettings from '@/routes/company-settings';
 import {
+    billingSettingsSchema,
     brandingSettingsSchema,
     codesSettingsSchema,
     generalSettingsSchema,
@@ -42,6 +46,7 @@ type SectionKey =
     | 'branding'
     | 'sms'
     | 'notifications'
+    | 'billing'
     | 'codes'
     | 'trash';
 
@@ -54,13 +59,16 @@ const SECTIONS: {
     { key: 'branding', label: 'Branding & exports', icon: Folder },
     { key: 'sms', label: 'SMS', icon: MessageSquare },
     { key: 'notifications', label: 'Notifications', icon: Bell },
+    { key: 'billing', label: 'Billing & reminders', icon: CalendarClock },
     { key: 'codes', label: 'Codes', icon: Hash },
     { key: 'trash', label: 'Trash & data', icon: Trash2 },
 ];
 
 type PageProps = {
     section: SectionKey;
+    timezones: SearchableSelectOption[];
     general: {
+        app_name: string;
         company_name: string;
         support_email: string;
         address: string;
@@ -88,6 +96,12 @@ type PageProps = {
         email_enabled: boolean;
         sms_enabled: boolean;
     };
+    billing: {
+        days_in_month: number;
+        rent_reminder_days_before: number;
+        rent_overdue_reminder_days_after: number;
+        rent_overdue_reminder_repeat_days: number;
+    };
     codes: {
         property_prefix: string;
         property_template: string;
@@ -108,7 +122,9 @@ export default function CompanySettings({
     branding,
     sms,
     notifications,
+    billing,
     codes,
+    timezones,
 }: PageProps) {
     return (
         <>
@@ -119,8 +135,7 @@ export default function CompanySettings({
                     Settings
                 </h1>
                 <p className="mt-1 text-[13px] text-text-secondary">
-                    Configure how {general.company_name} works for your
-                    company.
+                    Configure how {general.app_name} works for your company.
                 </p>
             </div>
 
@@ -153,7 +168,10 @@ export default function CompanySettings({
 
                 <div>
                     {section === 'general' && (
-                        <GeneralSection general={general} />
+                        <GeneralSection
+                            general={general}
+                            timezones={timezones}
+                        />
                     )}
                     {section === 'branding' && (
                         <BrandingSection branding={branding} />
@@ -161,6 +179,9 @@ export default function CompanySettings({
                     {section === 'sms' && <SmsSection sms={sms} />}
                     {section === 'notifications' && (
                         <NotificationsSection notifications={notifications} />
+                    )}
+                    {section === 'billing' && (
+                        <BillingSection billing={billing} />
                     )}
                     {section === 'codes' && <CodesSection codes={codes} />}
                     {section === 'trash' && <TrashSection general={general} />}
@@ -170,7 +191,13 @@ export default function CompanySettings({
     );
 }
 
-function GeneralSection({ general }: { general: PageProps['general'] }) {
+function GeneralSection({
+    general,
+    timezones,
+}: {
+    general: PageProps['general'];
+    timezones: PageProps['timezones'];
+}) {
     const { data, setField, errors, processing, submit } = useInertiaZodForm(
         generalSettingsSchema,
         general,
@@ -185,9 +212,23 @@ function GeneralSection({ general }: { general: PageProps['general'] }) {
         <form onSubmit={handleSubmit} noValidate>
             <SettingsCard
                 title="Company details"
-                description="Shown on invoices, receipts, and exported reports."
+                description="Your app's identity in the interface, and your formal business details shown on invoices, receipts, and exported reports."
             >
                 <div className="grid gap-3.5 sm:grid-cols-2">
+                    <div className="grid gap-1.5">
+                        <Label htmlFor="app_name">App name</Label>
+                        <Input
+                            id="app_name"
+                            value={data.app_name}
+                            onChange={(e) =>
+                                setField('app_name', e.target.value)
+                            }
+                        />
+                        <p className="text-xs text-text-tertiary">
+                            Shown in the sidebar and browser tab.
+                        </p>
+                        <InputError message={errors.app_name} />
+                    </div>
                     <div className="grid gap-1.5">
                         <Label htmlFor="company_name">Company name</Label>
                         <Input
@@ -197,6 +238,9 @@ function GeneralSection({ general }: { general: PageProps['general'] }) {
                                 setField('company_name', e.target.value)
                             }
                         />
+                        <p className="text-xs text-text-tertiary">
+                            Used on invoices, receipts, and exported reports.
+                        </p>
                         <InputError message={errors.company_name} />
                     </div>
                     <div className="grid gap-1.5">
@@ -217,9 +261,7 @@ function GeneralSection({ general }: { general: PageProps['general'] }) {
                             id="phone"
                             type="tel"
                             value={data.phone}
-                            onChange={(e) =>
-                                setField('phone', e.target.value)
-                            }
+                            onChange={(e) => setField('phone', e.target.value)}
                             placeholder="+2567xxxxxxxx"
                         />
                         <InputError message={errors.phone} />
@@ -256,13 +298,15 @@ function GeneralSection({ general }: { general: PageProps['general'] }) {
                     </div>
                     <div className="grid gap-1.5">
                         <Label htmlFor="timezone">Timezone</Label>
-                        <Input
+                        <SearchableSelect
                             id="timezone"
-                            value={data.timezone}
-                            onChange={(e) =>
-                                setField('timezone', e.target.value)
+                            value={data.timezone || null}
+                            onChange={(value) =>
+                                setField('timezone', value ?? '')
                             }
-                            placeholder="Africa/Kampala"
+                            options={timezones}
+                            placeholder="Select a timezone…"
+                            searchPlaceholder="Search timezones…"
                         />
                         <InputError message={errors.timezone} />
                     </div>
@@ -670,10 +714,113 @@ function NotificationsSection({
     );
 }
 
+function BillingSection({ billing }: { billing: PageProps['billing'] }) {
+    const { data, setField, errors, processing, submit } = useInertiaZodForm(
+        billingSettingsSchema,
+        billing,
+    );
+
+    function handleSubmit(e: FormEvent) {
+        e.preventDefault();
+        submit('patch', companySettings.updateBilling().url);
+    }
+
+    function numberField(key: keyof typeof data, min: number, max: number) {
+        return (
+            <Input
+                id={key}
+                type="number"
+                min={min}
+                max={max}
+                className="w-24"
+                value={data[key]}
+                onChange={(e) => setField(key, Number(e.target.value))}
+            />
+        );
+    }
+
+    return (
+        <form onSubmit={handleSubmit} noValidate>
+            <SettingsCard
+                title="Rent periods"
+                description="How rent periods and prorated stub periods are calculated."
+            >
+                <SettingsRow
+                    label="Days in a month"
+                    description="Day-count convention used to prorate a partial billing period, e.g. when a lease's due day differs from its move-in day."
+                >
+                    <div className="flex flex-col items-end gap-1">
+                        {numberField('days_in_month', 28, 31)}
+                        <InputError message={errors.days_in_month} />
+                    </div>
+                </SettingsRow>
+            </SettingsCard>
+
+            <SettingsCard
+                title="Rent reminders"
+                description="When automated rent-collection reminders go out to landlords and staff."
+            >
+                <SettingsRow
+                    label="Remind before rent is due"
+                    description="Send a reminder this many days before a rent period's due date."
+                >
+                    <div className="flex flex-col items-end gap-1">
+                        {numberField('rent_reminder_days_before', 0, 30)}
+                        <InputError
+                            message={errors.rent_reminder_days_before}
+                        />
+                    </div>
+                </SettingsRow>
+                <SettingsRow
+                    label="Flag as overdue after"
+                    description="Send the first overdue reminder this many days after a missed due date."
+                >
+                    <div className="flex flex-col items-end gap-1">
+                        {numberField('rent_overdue_reminder_days_after', 0, 30)}
+                        <InputError
+                            message={errors.rent_overdue_reminder_days_after}
+                        />
+                    </div>
+                </SettingsRow>
+                <SettingsRow
+                    label="Repeat overdue reminders every"
+                    description="How often to resend the overdue reminder while a period stays unpaid."
+                >
+                    <div className="flex flex-col items-end gap-1">
+                        {numberField(
+                            'rent_overdue_reminder_repeat_days',
+                            1,
+                            30,
+                        )}
+                        <InputError
+                            message={errors.rent_overdue_reminder_repeat_days}
+                        />
+                    </div>
+                </SettingsRow>
+            </SettingsCard>
+
+            <div className="flex justify-end">
+                <Button type="submit" disabled={processing}>
+                    {processing && <Spinner />}
+                    Save
+                </Button>
+            </div>
+        </form>
+    );
+}
+
 const CODE_TYPES: { key: string; label: string; example: string }[] = [
-    { key: 'property', label: 'Properties', example: 'e.g. Kisementi Apartments' },
+    {
+        key: 'property',
+        label: 'Properties',
+        example: 'e.g. Kisementi Apartments',
+    },
     { key: 'unit', label: 'Units', example: 'e.g. Unit 4B' },
-    { key: 'document', label: 'Documents', example: 'e.g. Fire safety certificate' },
+    {
+        key: 'document',
+        label: 'Documents',
+        example: 'e.g. Fire safety certificate',
+    },
     { key: 'expense', label: 'Expenses', example: 'e.g. Water bill' },
     { key: 'income', label: 'Income', example: 'e.g. Parking fee' },
 ];
@@ -748,7 +895,9 @@ function CodesSection({ codes }: { codes: PageProps['codes'] }) {
                         {'{date:Ymd}'}
                     </code>{' '}
                     today's date, and{' '}
-                    <code className="rounded bg-card px-1 py-0.5">{'{id}'}</code>{' '}
+                    <code className="rounded bg-card px-1 py-0.5">
+                        {'{id}'}
+                    </code>{' '}
                     the record's own ID. Unrecognized text is kept as-is, so a
                     typo never blocks saving a record.
                 </div>
@@ -790,9 +939,7 @@ function CodesSection({ codes }: { codes: PageProps['codes'] }) {
                                             )
                                         }
                                     />
-                                    <InputError
-                                        message={errors[prefixKey]}
-                                    />
+                                    <InputError message={errors[prefixKey]} />
                                 </div>
                                 <div className="grid gap-1.5">
                                     <Label htmlFor={`${type.key}_template`}>
@@ -808,9 +955,7 @@ function CodesSection({ codes }: { codes: PageProps['codes'] }) {
                                             )
                                         }
                                     />
-                                    <InputError
-                                        message={errors[templateKey]}
-                                    />
+                                    <InputError message={errors[templateKey]} />
                                     <p className="font-mono text-xs text-text-tertiary">
                                         Preview:{' '}
                                         {previewCode(

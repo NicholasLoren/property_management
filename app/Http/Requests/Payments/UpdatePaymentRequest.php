@@ -5,6 +5,7 @@ namespace App\Http\Requests\Payments;
 use App\Enums\PaymentMethod;
 use App\Enums\PaymentStatus;
 use App\Models\Lease;
+use App\Models\PaymentSchedule;
 use Closure;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -31,6 +32,19 @@ class UpdatePaymentRequest extends FormRequest
 
                     if ($lease !== null && ! $lease->tenants()->whereKey($value)->exists()) {
                         $fail('The selected tenant is not on this lease.');
+                    }
+                },
+            ],
+            'payment_schedule_id' => [
+                'nullable',
+                Rule::exists('payment_schedules', 'id'),
+                function (string $attribute, mixed $value, Closure $fail): void {
+                    $payment = $this->route('payment');
+                    $leaseId = $payment?->lease_id;
+                    $schedule = PaymentSchedule::query()->whereKey($value)->first();
+
+                    if ($schedule !== null && (string) $schedule->lease_id !== (string) $leaseId) {
+                        $fail('The selected rent period is not on this lease.');
                     }
                 },
             ],

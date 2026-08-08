@@ -1,6 +1,7 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import { Inbox, Plus, Search, Send as SendIcon } from 'lucide-react';
-import { useMemo, useRef, useState } from 'react';
+import type { ColumnDef } from '@tanstack/react-table';
+import { Eye, Inbox, Plus, Search, Send as SendIcon } from 'lucide-react';
+import { useRef, useState } from 'react';
 import { DataTable } from '@/components/data-table/data-table';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,6 +9,8 @@ import { usePermissions } from '@/hooks/use-permissions';
 import { cn } from '@/lib/utils';
 import { getInboxColumns, getSentColumns } from '@/pages/messages/columns';
 import type { InboxMessageRow, SentMessageRow } from '@/pages/messages/columns';
+import type { MessageDetails } from '@/pages/messages/message-details-sheet';
+import { MessageDetailsSheet } from '@/pages/messages/message-details-sheet';
 import messages from '@/routes/messages';
 
 type PageProps = {
@@ -38,7 +41,22 @@ export default function MessagesIndex({
     const { name } = usePage().props;
     const { can } = usePermissions();
     const [search, setSearch] = useState(filters.search);
+    const [selectedMessage, setSelectedMessage] =
+        useState<MessageDetails | null>(null);
     const searchDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    async function openMessage(id: number) {
+        const response = await fetch(messages.details(id).url, {
+            headers: { Accept: 'application/json' },
+        });
+
+        if (!response.ok) {
+            return;
+        }
+
+        const data = await response.json();
+        setSelectedMessage(data.message);
+    }
 
     function reload(partial: Partial<typeof filters>) {
         const next = { ...filters, ...partial };
@@ -71,8 +89,36 @@ export default function MessagesIndex({
         setSearch('');
     }
 
-    const inboxColumns = useMemo(() => getInboxColumns(), []);
-    const sentColumns = useMemo(() => getSentColumns(), []);
+    const viewColumn: ColumnDef<InboxMessageRow | SentMessageRow> = {
+        id: 'view',
+        header: '',
+        enableHiding: false,
+        cell: ({ row }) => (
+            <div className="flex items-center justify-end">
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-8"
+                    title="View details"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        openMessage(row.original.id);
+                    }}
+                >
+                    <Eye className="size-[15px]" />
+                </Button>
+            </div>
+        ),
+    };
+
+    const inboxColumns: ColumnDef<InboxMessageRow>[] = [
+        ...getInboxColumns(),
+        viewColumn as ColumnDef<InboxMessageRow>,
+    ];
+    const sentColumns: ColumnDef<SentMessageRow>[] = [
+        ...getSentColumns(),
+        viewColumn as ColumnDef<SentMessageRow>,
+    ];
     const isFiltered = filters.search !== '';
 
     const toolbar = (
@@ -182,6 +228,11 @@ export default function MessagesIndex({
                     {...sharedTableProps}
                 />
             )}
+
+            <MessageDetailsSheet
+                message={selectedMessage}
+                onOpenChange={(open) => !open && setSelectedMessage(null)}
+            />
         </>
     );
 }

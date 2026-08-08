@@ -5,6 +5,7 @@ import { z } from 'zod';
  * counterpart so the client rejects the same input the server would.
  */
 export const generalSettingsSchema = z.object({
+    app_name: z.string().trim().min(1, 'App name is required.').max(255),
     company_name: z
         .string()
         .trim()
@@ -58,6 +59,13 @@ export const smsSettingsSchema = z.object({
 export const notificationSettingsSchema = z.object({
     email_enabled: z.boolean(),
     sms_enabled: z.boolean(),
+});
+
+export const billingSettingsSchema = z.object({
+    days_in_month: z.number().int().min(28).max(31),
+    rent_reminder_days_before: z.number().int().min(0).max(30),
+    rent_overdue_reminder_days_after: z.number().int().min(0).max(30),
+    rent_overdue_reminder_repeat_days: z.number().int().min(1).max(30),
 });
 
 export const testSmsSchema = z.object({

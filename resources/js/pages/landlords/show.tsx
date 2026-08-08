@@ -20,6 +20,7 @@ type LandlordShowRow = {
     email: string;
     id_number: string | null;
     address: string | null;
+    phone: string | null;
     notes: string | null;
     id_document: { name: string; url: string } | null;
     properties: LandlordProperty[];
@@ -39,7 +40,10 @@ export default function LandlordShow({ landlord }: PageProps) {
                 <Breadcrumbs
                     breadcrumbs={[
                         { title: 'Landlords', href: landlords.index() },
-                        { title: landlord.name, href: landlords.show(landlord) },
+                        {
+                            title: landlord.name,
+                            href: landlords.show(landlord),
+                        },
                     ]}
                 />
             </div>
@@ -118,6 +122,12 @@ export default function LandlordShow({ landlord }: PageProps) {
                             <dt className="text-text-tertiary">Address</dt>
                             <dd className="text-right font-medium">
                                 {landlord.address ?? '–'}
+                            </dd>
+                        </div>
+                        <div className="flex justify-between gap-3">
+                            <dt className="text-text-tertiary">Phone</dt>
+                            <dd className="text-right font-medium">
+                                {landlord.phone ?? '–'}
                             </dd>
                         </div>
                     </dl>

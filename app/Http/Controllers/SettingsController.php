@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\Settings\TestSmsRequest;
+use App\Http\Requests\Settings\UpdateBillingSettingsRequest;
 use App\Http\Requests\Settings\UpdateBrandingSettingsRequest;
 use App\Http\Requests\Settings\UpdateCodesSettingsRequest;
 use App\Http\Requests\Settings\UpdateGeneralSettingsRequest;
@@ -10,11 +11,14 @@ use App\Http\Requests\Settings\UpdateNotificationSettingsRequest;
 use App\Http\Requests\Settings\UpdateSmsSettingsRequest;
 use App\Models\CompanyProfile;
 use App\Services\AfricasTalkingSmsService;
+use App\Settings\BillingSettings;
 use App\Settings\BrandingSettings;
 use App\Settings\CodesSettings;
 use App\Settings\GeneralSettings;
 use App\Settings\NotificationSettings;
 use App\Settings\SmsSettings;
+use DateTime;
+use DateTimeZone;
 use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -28,6 +32,7 @@ class SettingsController extends Controller
         SmsSettings $sms,
         NotificationSettings $notifications,
         CodesSettings $codes,
+        BillingSettings $billing,
     ): Response {
         $profile = CompanyProfile::current();
         $logo = $profile->getFirstMedia('logo');
@@ -50,7 +55,42 @@ class SettingsController extends Controller
             ],
             'notifications' => $notifications->toArray(),
             'codes' => $codes->toArray(),
+            'billing' => $billing->toArray(),
+            'timezones' => $this->timezoneOptions(),
         ]);
+    }
+
+    /**
+     * @return array<int, array{value: string, label: string}>
+     */
+    private function timezoneOptions(): array
+    {
+        $now = new DateTime('now', new DateTimeZone('UTC'));
+
+        $options = array_map(function (string $timezone) use ($now): array {
+            $offsetSeconds = (new DateTimeZone($timezone))->getOffset($now);
+
+            return [
+                'value' => $timezone,
+                'label' => sprintf('%s (UTC%s)', str_replace('_', ' ', $timezone), $this->formatUtcOffset($offsetSeconds)),
+                'offset' => $offsetSeconds,
+            ];
+        }, DateTimeZone::listIdentifiers());
+
+        // Grouping by offset (then name) makes the closed list — before a
+        // search narrows it — actually browsable, rather than a flat
+        // alphabetical dump where "same time as me" options are scattered.
+        usort($options, fn (array $a, array $b) => $a['offset'] <=> $b['offset'] ?: $a['label'] <=> $b['label']);
+
+        return array_map(fn (array $option) => ['value' => $option['value'], 'label' => $option['label']], $options);
+    }
+
+    private function formatUtcOffset(int $seconds): string
+    {
+        $sign = $seconds < 0 ? '-' : '+';
+        $minutesTotal = intdiv(abs($seconds), 60);
+
+        return sprintf('%s%02d:%02d', $sign, intdiv($minutesTotal, 60), $minutesTotal % 60);
     }
 
     public function updateGeneral(UpdateGeneralSettingsRequest $request, GeneralSettings $settings): RedirectResponse
@@ -127,6 +167,18 @@ class SettingsController extends Controller
         activity()->useLog('settings')->causedBy($request->user())->log('Updated notification settings.');
 
         Inertia::flash('toast', ['type' => 'success', 'message' => 'Notification settings saved.']);
+
+        return back();
+    }
+
+    public function updateBilling(UpdateBillingSettingsRequest $request, BillingSettings $settings): RedirectResponse
+    {
+        $settings->fill($request->validated());
+        $settings->save();
+
+        activity()->useLog('settings')->causedBy($request->user())->log('Updated billing settings.');
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => 'Billing settings saved.']);
 
         return back();
     }

@@ -1,4 +1,4 @@
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, usePage } from '@inertiajs/react';
 import type { FormEvent } from 'react';
 import { Breadcrumbs } from '@/components/breadcrumbs';
 import InputError from '@/components/input-error';
@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { FileDropzone } from '@/components/ui/file-dropzone';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { RequiredAsterisk } from '@/components/ui/required-asterisk';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import {
     Select,
@@ -48,6 +49,7 @@ export default function DocumentForm({
     types,
     attachables,
 }: PageProps) {
+    const { limits } = usePage().props;
     const isEdit = Boolean(document);
 
     const { data, setField, errors, processing, submit } = useInertiaZodForm(
@@ -110,11 +112,18 @@ export default function DocumentForm({
             >
                 <div className="grid gap-4 sm:grid-cols-2">
                     <div className="grid gap-1.5">
-                        <Label htmlFor="documentable_type">Attach to</Label>
+                        <Label htmlFor="documentable_type">
+                            Attach to
+                            <RequiredAsterisk />
+                        </Label>
                         {isEdit ? (
                             <div className="flex h-9 items-center rounded-md border border-border-soft bg-secondary px-3 text-sm text-text-secondary">
-                                {types.find((t) => t.value === data.documentable_type)
-                                    ?.label}{' '}
+                                {
+                                    types.find(
+                                        (t) =>
+                                            t.value === data.documentable_type,
+                                    )?.label
+                                }{' '}
                                 — {document!.documentable_label}
                             </div>
                         ) : (
@@ -128,12 +137,18 @@ export default function DocumentForm({
                                     setField('documentable_id', '');
                                 }}
                             >
-                                <SelectTrigger id="documentable_type" className="w-full">
+                                <SelectTrigger
+                                    id="documentable_type"
+                                    className="w-full"
+                                >
                                     <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
                                     {types.map((type) => (
-                                        <SelectItem key={type.value} value={type.value}>
+                                        <SelectItem
+                                            key={type.value}
+                                            value={type.value}
+                                        >
                                             {type.label}
                                         </SelectItem>
                                     ))}
@@ -145,7 +160,10 @@ export default function DocumentForm({
 
                     {!isEdit && (
                         <div className="grid gap-1.5">
-                            <Label htmlFor="documentable_id">Record</Label>
+                            <Label htmlFor="documentable_id">
+                                Record
+                                <RequiredAsterisk />
+                            </Label>
                             <SearchableSelect
                                 id="documentable_id"
                                 value={data.documentable_id || null}
@@ -161,7 +179,10 @@ export default function DocumentForm({
                     )}
 
                     <div className="grid gap-1.5">
-                        <Label htmlFor="title">Title</Label>
+                        <Label htmlFor="title">
+                            Title
+                            <RequiredAsterisk />
+                        </Label>
                         <Input
                             id="title"
                             autoFocus
@@ -173,17 +194,25 @@ export default function DocumentForm({
                     </div>
 
                     <div className="grid gap-1.5">
-                        <Label htmlFor="category_id">Category</Label>
+                        <Label htmlFor="category_id">
+                            Category
+                            <RequiredAsterisk />
+                        </Label>
                         <Select
                             value={data.category_id}
-                            onValueChange={(value) => setField('category_id', value)}
+                            onValueChange={(value) =>
+                                setField('category_id', value)
+                            }
                         >
                             <SelectTrigger id="category_id" className="w-full">
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
                                 {categories.map((category) => (
-                                    <SelectItem key={category.value} value={category.value}>
+                                    <SelectItem
+                                        key={category.value}
+                                        value={category.value}
+                                    >
                                         {category.label}
                                     </SelectItem>
                                 ))}
@@ -220,8 +249,8 @@ export default function DocumentForm({
                         )}
                     </Label>
                     <FileDropzone
-                        accept="image/jpeg,image/png,image/webp,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                        maxSizeMb={10}
+                        accept="application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-powerpoint,text/plain,image/jpeg,image/png,image/webp,image/gif,image/svg+xml,video/x-msvideo"
+                        maxSizeMb={limits.documentMaxMb}
                         value={data.file ?? null}
                         onChange={(file) => setField('file', file)}
                         existing={document?.file ?? null}

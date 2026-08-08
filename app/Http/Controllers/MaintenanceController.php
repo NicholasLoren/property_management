@@ -333,6 +333,7 @@ class MaintenanceController extends Controller
             'unit' => $maintenance->unit !== null ? [
                 'id' => $maintenance->unit->id,
                 'name' => $maintenance->unit->name,
+                'property_id' => $maintenance->unit->property_id,
                 'property_name' => $maintenance->unit->property?->name,
             ] : null,
             'priority' => $maintenance->priority->value,

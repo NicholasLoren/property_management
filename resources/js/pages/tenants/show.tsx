@@ -3,6 +3,7 @@ import { FileText, Mail, Pencil, Phone } from 'lucide-react';
 import { Breadcrumbs } from '@/components/breadcrumbs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { EntityAvatar } from '@/components/ui/entity-avatar';
 import { usePermissions } from '@/hooks/use-permissions';
 import { formatCurrency } from '@/lib/currency';
 import leases from '@/routes/leases';
@@ -25,6 +26,7 @@ type TenantShowRow = {
     name: string;
     email: string | null;
     phone: string | null;
+    avatar?: string | null;
     id_number: string | null;
     address: string | null;
     notes: string | null;
@@ -53,23 +55,31 @@ export default function TenantShow({ tenant }: PageProps) {
             </div>
 
             <div className="mb-[22px] flex flex-wrap items-start justify-between gap-4">
-                <div>
-                    <h1 className="text-[21px] font-extrabold tracking-tight">
-                        {tenant.name}
-                    </h1>
-                    <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-text-secondary">
-                        {tenant.email && (
-                            <span className="inline-flex items-center gap-1.5">
-                                <Mail className="size-[13px]" />
-                                {tenant.email}
-                            </span>
-                        )}
-                        {tenant.phone && (
-                            <span className="inline-flex items-center gap-1.5">
-                                <Phone className="size-[13px]" />
-                                {tenant.phone}
-                            </span>
-                        )}
+                <div className="flex items-center gap-3">
+                    <EntityAvatar
+                        name={tenant.name}
+                        seed={tenant.id}
+                        imageUrl={tenant.avatar}
+                        className="size-12 text-base"
+                    />
+                    <div>
+                        <h1 className="text-[21px] font-extrabold tracking-tight">
+                            {tenant.name}
+                        </h1>
+                        <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-text-secondary">
+                            {tenant.email && (
+                                <span className="inline-flex items-center gap-1.5">
+                                    <Mail className="size-[13px]" />
+                                    {tenant.email}
+                                </span>
+                            )}
+                            {tenant.phone && (
+                                <span className="inline-flex items-center gap-1.5">
+                                    <Phone className="size-[13px]" />
+                                    {tenant.phone}
+                                </span>
+                            )}
+                        </div>
                     </div>
                 </div>
                 {can('tenants.edit') && (

@@ -4,15 +4,16 @@ import {
     IdCard,
     MapPin,
     Pencil,
+    Phone,
     ShieldCheck,
     StickyNote,
 } from 'lucide-react';
 import { Breadcrumbs } from '@/components/breadcrumbs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { useInitials } from '@/hooks/use-initials';
+import { EntityAvatar } from '@/components/ui/entity-avatar';
 import { usePermissions } from '@/hooks/use-permissions';
-import { avatarTone, avatarToneClass, badgeToneClass } from '@/lib/avatar-tone';
+import { avatarTone, badgeToneClass } from '@/lib/avatar-tone';
 import { formatDate, formatDateTime } from '@/lib/datetime';
 import users from '@/routes/users';
 
@@ -20,6 +21,7 @@ type UserShowRow = {
     id: number;
     name: string;
     email: string;
+    avatar?: string | null;
     role: string | null;
     permissions: string[];
     status: string;
@@ -29,6 +31,7 @@ type UserShowRow = {
     landlord: {
         id_number: string | null;
         address: string | null;
+        phone: string | null;
         notes: string | null;
         document: { name: string; url: string } | null;
     } | null;
@@ -45,7 +48,6 @@ const STATUS_DOT_CLASS: Record<string, string> = {
 export default function UserShow({ user }: PageProps) {
     const { timezone } = usePage().props;
     const { can } = usePermissions();
-    const getInitials = useInitials();
 
     return (
         <>
@@ -62,11 +64,12 @@ export default function UserShow({ user }: PageProps) {
 
             <div className="mb-[22px] flex flex-wrap items-start justify-between gap-4">
                 <div className="flex items-center gap-3">
-                    <span
-                        className={`flex size-12 shrink-0 items-center justify-center rounded-full font-display text-base font-bold text-accent-contrast ${avatarToneClass[avatarTone(user.id)]}`}
-                    >
-                        {getInitials(user.name)}
-                    </span>
+                    <EntityAvatar
+                        name={user.name}
+                        seed={user.id}
+                        imageUrl={user.avatar}
+                        className="size-12 text-base"
+                    />
                     <div>
                         <h1 className="text-[21px] font-extrabold tracking-tight">
                             {user.name}
@@ -198,6 +201,19 @@ export default function UserShow({ user }: PageProps) {
                                     </div>
                                 </div>
                             )}
+                            {user.landlord.phone && (
+                                <div className="flex items-start gap-2">
+                                    <Phone className="mt-0.5 size-4 shrink-0 text-text-tertiary" />
+                                    <div>
+                                        <div className="text-xs text-text-tertiary">
+                                            Phone
+                                        </div>
+                                        <div className="text-[13px] text-foreground">
+                                            {user.landlord.phone}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                             {user.landlord.notes && (
                                 <div className="flex items-start gap-2">
                                     <StickyNote className="mt-0.5 size-4 shrink-0 text-text-tertiary" />
@@ -231,6 +247,7 @@ export default function UserShow({ user }: PageProps) {
                             )}
                             {!user.landlord.id_number &&
                                 !user.landlord.address &&
+                                !user.landlord.phone &&
                                 !user.landlord.notes &&
                                 !user.landlord.document && (
                                     <p className="text-[13px] text-text-tertiary">

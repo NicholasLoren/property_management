@@ -1,5 +1,6 @@
-import { Building2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Building2, ChevronLeft, ChevronRight, Expand } from 'lucide-react';
 import { useState } from 'react';
+import { PhotoLightbox } from '@/components/ui/photo-lightbox';
 import { cn } from '@/lib/utils';
 
 export type CarouselPhoto = { id: number; name: string; url: string };
@@ -11,6 +12,7 @@ type PhotoCarouselProps = {
 
 export function PhotoCarousel({ photos, className }: PhotoCarouselProps) {
     const [index, setIndex] = useState(0);
+    const [lightboxOpen, setLightboxOpen] = useState(false);
 
     if (photos.length === 0) {
         return (
@@ -33,11 +35,21 @@ export function PhotoCarousel({ photos, className }: PhotoCarouselProps) {
 
     return (
         <div className={cn('group relative aspect-[4/3]', className)}>
-            <img
-                src={photo.url}
-                alt={photo.name}
-                className="size-full rounded-xl object-cover"
-            />
+            <button
+                type="button"
+                onClick={() => setLightboxOpen(true)}
+                aria-label="View full-size photo"
+                className="block size-full cursor-zoom-in"
+            >
+                <img
+                    src={photo.url}
+                    alt={photo.name}
+                    className="size-full rounded-xl object-cover"
+                />
+                <span className="absolute top-3 right-3 flex size-8 items-center justify-center rounded-full bg-black/50 text-white opacity-0 transition-opacity group-hover:opacity-100">
+                    <Expand className="size-4" />
+                </span>
+            </button>
 
             {photos.length > 1 && (
                 <>
@@ -74,6 +86,14 @@ export function PhotoCarousel({ photos, className }: PhotoCarouselProps) {
                     </div>
                 </>
             )}
+
+            <PhotoLightbox
+                photos={photos}
+                index={index}
+                open={lightboxOpen}
+                onOpenChange={setLightboxOpen}
+                onIndexChange={setIndex}
+            />
         </div>
     );
 }

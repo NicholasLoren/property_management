@@ -7,6 +7,7 @@ enum BillingPeriod: string
     case Monthly = 'monthly';
     case Quarterly = 'quarterly';
     case Yearly = 'yearly';
+    case Custom = 'custom';
 
     public function label(): string
     {
@@ -14,6 +15,7 @@ enum BillingPeriod: string
             self::Monthly => 'Monthly',
             self::Quarterly => 'Quarterly',
             self::Yearly => 'Yearly',
+            self::Custom => 'Custom',
         };
     }
 }

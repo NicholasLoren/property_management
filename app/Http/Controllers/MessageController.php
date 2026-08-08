@@ -10,6 +10,7 @@ use App\Models\Role;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -140,6 +141,23 @@ class MessageController extends Controller
 
     public function show(Request $request, Message $message): Response
     {
+        return Inertia::render('messages/show', [
+            'message' => $this->loadMessageDetails($request, $message),
+        ]);
+    }
+
+    public function details(Request $request, Message $message): JsonResponse
+    {
+        return response()->json([
+            'message' => $this->loadMessageDetails($request, $message),
+        ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function loadMessageDetails(Request $request, Message $message): array
+    {
         $user = $request->user();
         $isSender = $message->sender_id === $user->id;
         $recipientPivot = $message->recipients()->where('user_id', $user->id)->first()?->pivot;
@@ -156,24 +174,22 @@ class MessageController extends Controller
             $message->load('recipients');
         }
 
-        return Inertia::render('messages/show', [
-            'message' => [
-                'id' => $message->id,
-                'type' => $message->type->value,
-                'type_label' => $message->type->label(),
-                'subject' => $message->subject,
-                'body' => $message->body,
-                'sender_name' => $message->sender !== null ? $message->sender->name : 'Deleted user',
-                'created_at' => $message->created_at?->toIso8601String(),
-                'is_sender' => $isSender,
-                'recipients' => $isSender
-                    ? $message->recipients->map(fn (User $recipient) => [
-                        'name' => $recipient->name,
-                        'read_at' => $recipient->pivot->read_at,
-                    ])->all()
-                    : null,
-            ],
-        ]);
+        return [
+            'id' => $message->id,
+            'type' => $message->type->value,
+            'type_label' => $message->type->label(),
+            'subject' => $message->subject,
+            'body' => $message->body,
+            'sender_name' => $message->sender !== null ? $message->sender->name : 'Deleted user',
+            'created_at' => $message->created_at?->toIso8601String(),
+            'is_sender' => $isSender,
+            'recipients' => $isSender
+                ? $message->recipients->map(fn (User $recipient) => [
+                    'name' => $recipient->name,
+                    'read_at' => $recipient->pivot->read_at,
+                ])->all()
+                : null,
+        ];
     }
 
     /**

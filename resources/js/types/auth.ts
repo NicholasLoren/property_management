@@ -4,7 +4,7 @@ export type User = {
     id: number;
     name: string;
     email: string;
-    avatar?: string;
+    avatar?: string | null;
     role: string;
     status: UserStatus;
     last_active_at: string | null;

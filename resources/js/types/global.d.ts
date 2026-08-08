@@ -23,6 +23,11 @@ declare module '@inertiajs/core' {
             auth: Auth;
             sidebarOpen: boolean;
             unreadMessagesCount: number;
+            unreadNotificationsCount: number;
+            limits: {
+                photoMaxMb: number;
+                documentMaxMb: number;
+            };
             [key: string]: unknown;
         };
     }

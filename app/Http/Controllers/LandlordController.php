@@ -67,6 +67,7 @@ class LandlordController extends Controller
                 'email' => $landlord->email,
                 'id_number' => $landlord->landlordDetail?->id_number,
                 'address' => $landlord->landlordDetail?->address,
+                'phone' => $landlord->landlordDetail?->phone,
                 'notes' => $landlord->landlordDetail?->notes,
                 'id_document' => $document ? [
                     'name' => $document->file_name,

@@ -3,21 +3,28 @@ import {
     ArrowRight,
     Bath,
     BedDouble,
+    Building2,
     Calendar,
     DoorOpen,
     KeyRound,
     Mail,
+    MapPin,
+    Navigation,
     Pencil,
     Percent,
+    Phone,
     Sparkles,
+    TrendingDown,
+    TrendingUp,
     Wallet,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
-import type { ComponentType } from 'react';
+import { useState } from 'react';
 import { Breadcrumbs } from '@/components/breadcrumbs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { EntityAvatar } from '@/components/ui/entity-avatar';
 import { PhotoCarousel } from '@/components/ui/photo-carousel';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { usePermissions } from '@/hooks/use-permissions';
 import { formatCurrency } from '@/lib/currency';
 import properties from '@/routes/properties';
@@ -39,6 +46,31 @@ type PriceSummary = {
     billing_period_label: string | null;
 };
 
+type PropertyPerformance = {
+    total_income: string;
+    total_expenses: string;
+    net: string;
+    occupancy_rate: number | null;
+};
+
+type PropertyLandlord = {
+    id: number;
+    name: string;
+    email: string;
+    phone: string | null;
+    address: string | null;
+    avatar?: string | null;
+};
+
+type PropertyUnit = {
+    id: number;
+    name: string;
+    unit_type_label: string | null;
+    status: string;
+    status_label: string;
+    current_price: { amount: string; billing_period_label: string } | null;
+};
+
 type PropertyShowRow = {
     id: number;
     name: string;
@@ -48,19 +80,25 @@ type PropertyShowRow = {
     latitude: number | null;
     longitude: number | null;
     description: string | null;
-    landlord: { id: number; name: string; email: string } | null;
+    landlord: PropertyLandlord | null;
     amenities: string[];
     photos: PropertyPhoto[];
     units_count: number;
-    units: { id: number; name: string }[];
+    units: PropertyUnit[];
     quick_facts: QuickFacts;
     price_summary: PriceSummary;
+    performance: PropertyPerformance;
     created_at: string | null;
 };
 
 type PageProps = { property: PropertyShowRow };
 
 const DESCRIPTION_PREVIEW_LENGTH = 220;
+
+const UNIT_STATUS_CLASS: Record<string, string> = {
+    vacant: 'bg-warning-soft text-warning',
+    occupied: 'bg-success-soft text-success',
+};
 
 function formatDaysAgo(iso: string | null): string {
     if (!iso) {
@@ -76,6 +114,19 @@ function formatDaysAgo(iso: string | null): string {
     }
 
     return `${days} day${days === 1 ? '' : 's'} ago`;
+}
+
+function directionsUrl(
+    latitude: number | null,
+    longitude: number | null,
+    address: string,
+): string {
+    const destination =
+        latitude !== null && longitude !== null
+            ? `${latitude},${longitude}`
+            : address;
+
+    return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(destination)}`;
 }
 
 function StatTile({
@@ -102,28 +153,10 @@ function StatTile({
     );
 }
 
-type LocationMapProps = { latitude: number; longitude: number };
-
 export default function PropertyShow({ property }: PageProps) {
     const { currency } = usePage().props;
     const { can } = usePermissions();
     const [descriptionExpanded, setDescriptionExpanded] = useState(false);
-    const [LocationMap, setLocationMap] =
-        useState<ComponentType<LocationMapProps> | null>(null);
-
-    useEffect(() => {
-        let active = true;
-
-        import('@/components/ui/property-location-map').then((mod) => {
-            if (active) {
-                setLocationMap(() => mod.default);
-            }
-        });
-
-        return () => {
-            active = false;
-        };
-    }, []);
 
     const { quick_facts: facts, price_summary: price } = property;
     const occupancyRate =
@@ -320,103 +353,30 @@ export default function PropertyShow({ property }: PageProps) {
                 </div>
             </div>
 
-            <div className="mt-4 grid gap-4 lg:grid-cols-3">
-                {property.landlord && (
-                    <div className="rounded-[14px] border border-border-soft bg-card p-5 shadow-sm">
-                        <p className="mb-3 flex items-center gap-1.5 text-xs font-semibold tracking-wide text-text-tertiary uppercase">
-                            <KeyRound className="size-3.5" />
-                            Landlord details
-                        </p>
-                        <div className="text-[13px] font-semibold text-foreground">
-                            {property.landlord.name}
-                        </div>
-                        <div className="mt-0.5 text-xs text-text-tertiary">
-                            {property.landlord.email}
-                        </div>
-                        <Button
-                            asChild
-                            variant="outline"
-                            className="mt-3 w-full"
-                        >
-                            <a href={`mailto:${property.landlord.email}`}>
-                                <Mail className="size-[15px]" />
-                                Contact landlord
-                            </a>
-                        </Button>
-                    </div>
-                )}
-
-                {can('units.view') && (
-                    <div className="rounded-[14px] border border-border-soft bg-card p-5 shadow-sm">
-                        <p className="mb-3 flex items-center gap-1.5 text-xs font-semibold tracking-wide text-text-tertiary uppercase">
-                            <DoorOpen className="size-3.5" />
-                            Units
-                        </p>
-                        {property.type === 'multi_unit' ? (
-                            <>
-                                <p className="mb-3 text-[13px] text-text-secondary">
-                                    {property.units_count} unit
-                                    {property.units_count === 1 ? '' : 's'} in
-                                    this property.
-                                </p>
-                                <Button
-                                    asChild
-                                    variant="outline"
-                                    className="w-full"
-                                >
-                                    <Link href={units.index(property)}>
-                                        Manage units
-                                        <ArrowRight className="size-[15px]" />
-                                    </Link>
-                                </Button>
-                            </>
-                        ) : property.units[0] ? (
-                            <>
-                                <p className="mb-3 text-[13px] text-text-secondary">
-                                    Standalone properties are a single unit —
-                                    manage its price, features, and photos
-                                    directly.
-                                </p>
-                                <Button
-                                    asChild
-                                    variant="outline"
-                                    className="w-full"
-                                >
-                                    <Link
-                                        href={units.show([
-                                            property.id,
-                                            property.units[0].id,
-                                        ])}
-                                    >
-                                        View unit
-                                        <ArrowRight className="size-[15px]" />
-                                    </Link>
-                                </Button>
-                            </>
-                        ) : (
-                            <p className="text-[13px] text-text-tertiary">
-                                No unit record found for this property yet.
-                            </p>
-                        )}
-                    </div>
-                )}
-
-                {property.latitude !== null && property.longitude !== null && (
-                    <div className="overflow-hidden rounded-[14px] border border-border-soft bg-card shadow-sm">
-                        <div className="h-full min-h-[180px]">
-                            {LocationMap ? (
-                                <LocationMap
-                                    latitude={property.latitude}
-                                    longitude={property.longitude}
-                                />
-                            ) : (
-                                <div className="flex size-full min-h-[180px] items-center justify-center bg-secondary/50 text-xs text-text-tertiary">
-                                    Loading map…
-                                </div>
+            <div className="mt-4 rounded-[14px] border border-border-soft bg-card p-5 shadow-sm">
+                <p className="mb-3 flex items-center gap-1.5 text-xs font-semibold tracking-wide text-text-tertiary uppercase">
+                    <MapPin className="size-3.5" />
+                    Location
+                </p>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                    <p className="text-[13px] text-foreground">
+                        {property.address}
+                    </p>
+                    <Button asChild variant="outline">
+                        <a
+                            href={directionsUrl(
+                                property.latitude,
+                                property.longitude,
+                                property.address,
                             )}
-                        </div>
-                    </div>
-                )}
+                            target="_blank"
+                            rel="noreferrer"
+                        >
+                            <Navigation className="size-[15px]" />
+                            Get directions
+                        </a>
+                    </Button>
+                </div>
             </div>
 
             {property.amenities.length > 0 && (
@@ -438,6 +398,191 @@ export default function PropertyShow({ property }: PageProps) {
                     </div>
                 </div>
             )}
+
+            <div className="mt-4 rounded-[14px] border border-border-soft bg-card p-5 shadow-sm">
+                <Tabs defaultValue="units">
+                    <TabsList>
+                        <TabsTrigger value="units">
+                            <DoorOpen className="size-3.5" />
+                            Units
+                        </TabsTrigger>
+                        <TabsTrigger value="landlord">
+                            <KeyRound className="size-3.5" />
+                            Landlord
+                        </TabsTrigger>
+                        <TabsTrigger value="performance">
+                            <TrendingUp className="size-3.5" />
+                            Performance
+                        </TabsTrigger>
+                    </TabsList>
+
+                    <TabsContent value="units" className="pt-4">
+                        {property.type === 'multi_unit' && (
+                            <div className="mb-3 flex justify-end">
+                                {can('units.view') && (
+                                    <Button asChild variant="outline">
+                                        <Link href={units.index(property)}>
+                                            Manage units
+                                            <ArrowRight className="size-[15px]" />
+                                        </Link>
+                                    </Button>
+                                )}
+                            </div>
+                        )}
+                        {property.units.length > 0 ? (
+                            <ul className="grid gap-2 sm:grid-cols-2">
+                                {property.units.map((unit) => (
+                                    <li key={unit.id}>
+                                        <Link
+                                            href={units.show([
+                                                property.id,
+                                                unit.id,
+                                            ])}
+                                            className="flex items-center justify-between gap-3 rounded-lg border border-border-soft px-3 py-2.5 hover:border-accent-brand"
+                                        >
+                                            <div>
+                                                <div className="text-[13px] font-semibold text-foreground">
+                                                    {unit.name}
+                                                </div>
+                                                <div className="text-xs text-text-tertiary">
+                                                    {unit.unit_type_label ??
+                                                        '—'}
+                                                    {unit.current_price &&
+                                                        ` · ${formatCurrency(unit.current_price.amount, currency)} / ${unit.current_price.billing_period_label.toLowerCase()}`}
+                                                </div>
+                                            </div>
+                                            <Badge
+                                                className={
+                                                    UNIT_STATUS_CLASS[
+                                                        unit.status
+                                                    ]
+                                                }
+                                            >
+                                                {unit.status_label}
+                                            </Badge>
+                                        </Link>
+                                    </li>
+                                ))}
+                            </ul>
+                        ) : (
+                            <p className="rounded-lg border border-dashed border-border-soft px-3 py-6 text-center text-[13px] text-text-tertiary">
+                                No units recorded for this property yet.
+                            </p>
+                        )}
+                    </TabsContent>
+
+                    <TabsContent value="landlord" className="pt-4">
+                        {property.landlord ? (
+                            <div className="flex flex-wrap items-start justify-between gap-4">
+                                <div className="flex items-center gap-3">
+                                    <EntityAvatar
+                                        name={property.landlord.name}
+                                        seed={property.landlord.id}
+                                        imageUrl={property.landlord.avatar}
+                                        className="size-12 text-base"
+                                    />
+                                    <div>
+                                        <div className="text-[15px] font-semibold text-foreground">
+                                            {property.landlord.name}
+                                        </div>
+                                        <div className="mt-0.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-text-secondary">
+                                            <span className="inline-flex items-center gap-1.5">
+                                                <Mail className="size-3.5" />
+                                                {property.landlord.email}
+                                            </span>
+                                            {property.landlord.phone && (
+                                                <span className="inline-flex items-center gap-1.5">
+                                                    <Phone className="size-3.5" />
+                                                    {property.landlord.phone}
+                                                </span>
+                                            )}
+                                        </div>
+                                        {property.landlord.address && (
+                                            <div className="mt-0.5 text-[13px] text-text-tertiary">
+                                                {property.landlord.address}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                                <Button asChild variant="outline">
+                                    <a
+                                        href={`mailto:${property.landlord.email}`}
+                                    >
+                                        <Mail className="size-[15px]" />
+                                        Contact landlord
+                                    </a>
+                                </Button>
+                            </div>
+                        ) : (
+                            <p className="rounded-lg border border-dashed border-border-soft px-3 py-6 text-center text-[13px] text-text-tertiary">
+                                No landlord is assigned to this property.
+                            </p>
+                        )}
+                    </TabsContent>
+
+                    <TabsContent value="performance" className="pt-4">
+                        <div className="grid gap-3 sm:grid-cols-3">
+                            <div className="rounded-lg border border-border-soft p-3">
+                                <div className="flex items-center gap-1.5 text-xs text-text-tertiary">
+                                    <TrendingUp className="size-3.5" />
+                                    Total income
+                                </div>
+                                <div className="mt-1 text-lg font-semibold text-success">
+                                    {formatCurrency(
+                                        property.performance.total_income,
+                                        currency,
+                                    )}
+                                </div>
+                            </div>
+                            <div className="rounded-lg border border-border-soft p-3">
+                                <div className="flex items-center gap-1.5 text-xs text-text-tertiary">
+                                    <TrendingDown className="size-3.5" />
+                                    Total expenses
+                                </div>
+                                <div className="mt-1 text-lg font-semibold text-destructive">
+                                    {formatCurrency(
+                                        property.performance.total_expenses,
+                                        currency,
+                                    )}
+                                </div>
+                            </div>
+                            <div className="rounded-lg border border-border-soft p-3">
+                                <div className="flex items-center gap-1.5 text-xs text-text-tertiary">
+                                    <Building2 className="size-3.5" />
+                                    Net
+                                </div>
+                                <div className="mt-1 text-lg font-semibold text-foreground">
+                                    {formatCurrency(
+                                        property.performance.net,
+                                        currency,
+                                    )}
+                                </div>
+                            </div>
+                            <div className="rounded-lg border border-border-soft p-3">
+                                <div className="flex items-center gap-1.5 text-xs text-text-tertiary">
+                                    <Percent className="size-3.5" />
+                                    Occupancy rate
+                                </div>
+                                <div className="mt-1 text-lg font-semibold text-foreground">
+                                    {property.performance.occupancy_rate !==
+                                    null
+                                        ? `${property.performance.occupancy_rate}%`
+                                        : '–'}
+                                </div>
+                            </div>
+                            <div className="rounded-lg border border-border-soft p-3">
+                                <div className="flex items-center gap-1.5 text-xs text-text-tertiary">
+                                    <DoorOpen className="size-3.5" />
+                                    Vacant / Occupied
+                                </div>
+                                <div className="mt-1 text-lg font-semibold text-foreground">
+                                    {facts.vacant} / {facts.occupied}
+                                </div>
+                            </div>
+                        </div>
+                    </TabsContent>
+                </Tabs>
+            </div>
         </>
     );
 }

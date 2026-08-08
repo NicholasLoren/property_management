@@ -25,7 +25,7 @@ class TenantController extends Controller
             ? Tenant::onlyTrashed()->with('deletedBy')
             : Tenant::query();
 
-        $query->with(['leases' => fn ($q) => $q->where('status', LeaseStatus::Active->value)->with('unit.property')]);
+        $query->with(['leases' => fn ($q) => $q->where('status', LeaseStatus::Active->value)->with('unit.property'), 'media']);
 
         if ($filters['search'] !== '') {
             $query->where(fn ($q) => $q->where('name', 'like', "%{$filters['search']}%")
@@ -92,6 +92,7 @@ class TenantController extends Controller
         ]);
 
         $this->syncIdDocument($request, $tenant);
+        $this->syncAvatar($request, $tenant);
 
         Inertia::flash('toast', ['type' => 'success', 'message' => "{$tenant->name} was added."]);
 
@@ -119,6 +120,7 @@ class TenantController extends Controller
         ]);
 
         $this->syncIdDocument($request, $tenant);
+        $this->syncAvatar($request, $tenant);
 
         Inertia::flash('toast', ['type' => 'success', 'message' => "{$tenant->name} was updated."]);
 
@@ -171,6 +173,15 @@ class TenantController extends Controller
         }
     }
 
+    private function syncAvatar(Request $request, Tenant $tenant): void
+    {
+        if ($request->hasFile('avatar')) {
+            $tenant->addMediaFromRequest('avatar')->toMediaCollection('avatar');
+        } elseif ($request->boolean('avatar_remove')) {
+            $tenant->clearMediaCollection('avatar');
+        }
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -183,6 +194,7 @@ class TenantController extends Controller
             'name' => $tenant->name,
             'email' => $tenant->email,
             'phone' => $tenant->phone,
+            'avatar' => $tenant->getFirstMediaUrl('avatar') ?: null,
             'active_lease' => $activeLease !== null ? [
                 'id' => $activeLease->id,
                 'unit_name' => $activeLease->unit?->name,
@@ -205,6 +217,7 @@ class TenantController extends Controller
     private function transformForForm(Tenant $tenant): array
     {
         $document = $tenant->getFirstMedia('id_document');
+        $avatar = $tenant->getFirstMedia('avatar');
 
         return [
             'id' => $tenant->id,
@@ -214,6 +227,7 @@ class TenantController extends Controller
             'id_number' => $tenant->id_number,
             'address' => $tenant->address,
             'notes' => $tenant->notes,
+            'avatar' => $avatar ? ['name' => $avatar->file_name, 'url' => $avatar->getUrl()] : null,
             'id_document' => $document ? [
                 'name' => $document->file_name,
                 'url' => $document->getUrl(),
@@ -236,6 +250,7 @@ class TenantController extends Controller
             'id_number' => $tenant->id_number,
             'address' => $tenant->address,
             'notes' => $tenant->notes,
+            'avatar' => $tenant->getFirstMediaUrl('avatar') ?: null,
             'id_document' => $document ? [
                 'name' => $document->file_name,
                 'url' => $document->getUrl(),

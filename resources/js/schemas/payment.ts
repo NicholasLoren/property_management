@@ -5,6 +5,7 @@ import { z } from 'zod';
  */
 export const paymentSchema = z.object({
     lease_id: z.string().trim().min(1, 'Lease is required.'),
+    payment_schedule_id: z.string().optional().nullable(),
     tenant_id: z.string().optional().nullable(),
     amount: z
         .string()
@@ -15,7 +16,13 @@ export const paymentSchema = z.object({
             'Enter a valid amount.',
         ),
     payment_date: z.string().trim().min(1, 'Payment date is required.'),
-    method: z.enum(['cash', 'bank_transfer', 'mobile_money', 'cheque', 'other']),
+    method: z.enum([
+        'cash',
+        'bank_transfer',
+        'mobile_money',
+        'cheque',
+        'other',
+    ]),
     status: z.enum(['completed', 'refunded', 'failed']),
     reference: z.string().max(255).optional().nullable(),
     notes: z.string().max(5000).optional().nullable(),

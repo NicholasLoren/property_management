@@ -26,6 +26,7 @@ class LeaseFactory extends Factory
             'end_date' => (clone $startDate)->modify('+1 year'),
             'rent_amount' => fake()->numberBetween(200000, 2000000),
             'billing_period' => BillingPeriod::Monthly,
+            'billing_day' => (int) $startDate->format('j'),
             'security_deposit' => fake()->optional()->numberBetween(200000, 2000000),
             'status' => LeaseStatus::Draft,
         ];

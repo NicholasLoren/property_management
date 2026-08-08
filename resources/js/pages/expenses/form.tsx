@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { FileDropzone } from '@/components/ui/file-dropzone';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { RequiredAsterisk } from '@/components/ui/required-asterisk';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import {
     Select,
@@ -39,7 +40,11 @@ type PageProps = {
     categories: Option[];
 };
 
-export default function ExpenseForm({ expense, properties, categories }: PageProps) {
+export default function ExpenseForm({
+    expense,
+    properties,
+    categories,
+}: PageProps) {
     const isEdit = Boolean(expense);
 
     const { data, setField, errors, processing, submit } = useInertiaZodForm(
@@ -75,7 +80,9 @@ export default function ExpenseForm({ expense, properties, categories }: PagePro
                         { title: 'Expenses', href: expenses.index() },
                         {
                             title: isEdit ? 'Edit expense' : 'Add expense',
-                            href: isEdit ? expenses.edit(expense!) : expenses.create(),
+                            href: isEdit
+                                ? expenses.edit(expense!)
+                                : expenses.create(),
                         },
                     ]}
                 />
@@ -86,7 +93,8 @@ export default function ExpenseForm({ expense, properties, categories }: PagePro
                     {isEdit ? 'Edit expense' : 'Add expense'}
                 </h1>
                 <p className="mt-1 text-[13px] text-text-secondary">
-                    Track a cost against a property — repairs, bills, taxes, and more.
+                    Track a cost against a property — repairs, bills, taxes, and
+                    more.
                 </p>
             </div>
 
@@ -97,11 +105,16 @@ export default function ExpenseForm({ expense, properties, categories }: PagePro
             >
                 <div className="grid gap-4 sm:grid-cols-2">
                     <div className="grid gap-1.5">
-                        <Label htmlFor="property_id">Property</Label>
+                        <Label htmlFor="property_id">
+                            Property
+                            <RequiredAsterisk />
+                        </Label>
                         <SearchableSelect
                             id="property_id"
                             value={data.property_id || null}
-                            onChange={(value) => setField('property_id', value ?? '')}
+                            onChange={(value) =>
+                                setField('property_id', value ?? '')
+                            }
                             options={properties}
                             placeholder="Select a property…"
                             searchPlaceholder="Search properties…"
@@ -110,17 +123,25 @@ export default function ExpenseForm({ expense, properties, categories }: PagePro
                     </div>
 
                     <div className="grid gap-1.5">
-                        <Label htmlFor="category_id">Category</Label>
+                        <Label htmlFor="category_id">
+                            Category
+                            <RequiredAsterisk />
+                        </Label>
                         <Select
                             value={data.category_id}
-                            onValueChange={(value) => setField('category_id', value)}
+                            onValueChange={(value) =>
+                                setField('category_id', value)
+                            }
                         >
                             <SelectTrigger id="category_id" className="w-full">
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
                                 {categories.map((category) => (
-                                    <SelectItem key={category.value} value={category.value}>
+                                    <SelectItem
+                                        key={category.value}
+                                        value={category.value}
+                                    >
                                         {category.label}
                                     </SelectItem>
                                 ))}
@@ -130,7 +151,10 @@ export default function ExpenseForm({ expense, properties, categories }: PagePro
                     </div>
 
                     <div className="grid gap-1.5">
-                        <Label htmlFor="amount">Amount</Label>
+                        <Label htmlFor="amount">
+                            Amount
+                            <RequiredAsterisk />
+                        </Label>
                         <Input
                             id="amount"
                             inputMode="decimal"
@@ -142,12 +166,17 @@ export default function ExpenseForm({ expense, properties, categories }: PagePro
                     </div>
 
                     <div className="grid gap-1.5">
-                        <Label htmlFor="transaction_date">Date</Label>
+                        <Label htmlFor="transaction_date">
+                            Date
+                            <RequiredAsterisk />
+                        </Label>
                         <Input
                             id="transaction_date"
                             type="date"
                             value={data.transaction_date}
-                            onChange={(e) => setField('transaction_date', e.target.value)}
+                            onChange={(e) =>
+                                setField('transaction_date', e.target.value)
+                            }
                         />
                         <InputError message={errors.transaction_date} />
                     </div>
@@ -163,7 +192,9 @@ export default function ExpenseForm({ expense, properties, categories }: PagePro
                     <Textarea
                         id="description"
                         value={data.description ?? ''}
-                        onChange={(e) => setField('description', e.target.value)}
+                        onChange={(e) =>
+                            setField('description', e.target.value)
+                        }
                         placeholder="What this expense was for"
                         maxLength={5000}
                     />
@@ -183,8 +214,14 @@ export default function ExpenseForm({ expense, properties, categories }: PagePro
                             setField('receipt', file);
                             setField('receipt_remove', false);
                         }}
-                        existing={!data.receipt_remove ? (expense?.receipt ?? null) : null}
-                        onRemoveExisting={() => setField('receipt_remove', true)}
+                        existing={
+                            !data.receipt_remove
+                                ? (expense?.receipt ?? null)
+                                : null
+                        }
+                        onRemoveExisting={() =>
+                            setField('receipt_remove', true)
+                        }
                         error={errors.receipt}
                     />
                 </div>

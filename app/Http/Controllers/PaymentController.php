@@ -3,13 +3,17 @@
 namespace App\Http\Controllers;
 
 use App\Enums\PaymentMethod;
+use App\Enums\PaymentScheduleStatus;
 use App\Enums\PaymentStatus;
 use App\Http\Requests\Payments\StorePaymentRequest;
 use App\Http\Requests\Payments\UpdatePaymentRequest;
 use App\Models\Lease;
 use App\Models\Payment;
+use App\Models\PaymentSchedule;
 use App\Models\Tenant;
+use App\Settings\GeneralSettings;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -92,10 +96,10 @@ class PaymentController extends Controller
         ];
     }
 
-    public function create(): Response
+    public function create(GeneralSettings $settings): Response
     {
         return Inertia::render('payments/form', [
-            'leases' => $this->leaseOptions(),
+            'leases' => $this->leaseOptions($settings->default_currency),
             'methods' => $this->methodOptions(),
             'statuses' => $this->statusOptions(),
         ]);
@@ -105,6 +109,7 @@ class PaymentController extends Controller
     {
         $payment = Payment::create([
             'lease_id' => $request->validated('lease_id'),
+            'payment_schedule_id' => $request->validated('payment_schedule_id'),
             'tenant_id' => $request->validated('tenant_id'),
             'amount' => $request->validated('amount'),
             'payment_date' => $request->validated('payment_date'),
@@ -122,13 +127,13 @@ class PaymentController extends Controller
         return to_route('payments.index');
     }
 
-    public function edit(Payment $payment): Response
+    public function edit(Payment $payment, GeneralSettings $settings): Response
     {
         $payment->load(['lease.unit.property', 'lease.tenants', 'media']);
 
         return Inertia::render('payments/form', [
-            'payment' => $this->transformForForm($payment),
-            'leases' => $this->leaseOptions(),
+            'payment' => $this->transformForForm($payment, $settings->default_currency),
+            'leases' => $this->leaseOptions($settings->default_currency),
             'methods' => $this->methodOptions(),
             'statuses' => $this->statusOptions(),
         ]);
@@ -137,6 +142,7 @@ class PaymentController extends Controller
     public function update(UpdatePaymentRequest $request, Payment $payment): RedirectResponse
     {
         $payment->update([
+            'payment_schedule_id' => $request->validated('payment_schedule_id'),
             'tenant_id' => $request->validated('tenant_id'),
             'amount' => $request->validated('amount'),
             'payment_date' => $request->validated('payment_date'),
@@ -221,9 +227,16 @@ class PaymentController extends Controller
     /**
      * @return array<string, mixed>
      */
-    private function transformForForm(Payment $payment): array
+    private function transformForForm(Payment $payment, string $currency): array
     {
         $receipt = $payment->getFirstMedia('receipt');
+
+        $schedulePeriods = $payment->lease?->paymentSchedules()
+            ->where(fn (Builder $q) => $q
+                ->whereIn('status', [PaymentScheduleStatus::Pending->value, PaymentScheduleStatus::Partial->value])
+                ->orWhere('id', $payment->payment_schedule_id))
+            ->orderBy('period_start')
+            ->get() ?? collect();
 
         return [
             'id' => $payment->id,
@@ -231,6 +244,18 @@ class PaymentController extends Controller
             'lease_label' => $payment->lease !== null
                 ? "{$payment->lease->unit?->name} — {$payment->lease->unit?->property?->name}"
                 : null,
+            'payment_schedule_id' => $payment->payment_schedule_id !== null ? (string) $payment->payment_schedule_id : null,
+            'lease_schedule_periods' => $schedulePeriods->map(fn (PaymentSchedule $schedule) => [
+                'value' => (string) $schedule->id,
+                'label' => sprintf(
+                    '%s – %s (%s %s, %s)',
+                    $schedule->period_start->format('j M Y'),
+                    $schedule->period_end->format('j M Y'),
+                    $currency,
+                    number_format((float) $schedule->amount_expected),
+                    $schedule->status->label(),
+                ),
+            ])->all(),
             'tenant_id' => $payment->tenant_id !== null ? (string) $payment->tenant_id : null,
             'lease_tenants' => $payment->lease?->tenants->map(fn (Tenant $tenant) => [
                 'value' => (string) $tenant->id,
@@ -247,17 +272,34 @@ class PaymentController extends Controller
     }
 
     /**
-     * @return array<int, array{value: string, label: string, tenants: array<int, array{value: string, label: string}>}>
+     * @return array<int, array{value: string, label: string, tenants: array<int, array{value: string, label: string}>, schedule_periods: array<int, array{value: string, label: string}>}>
      */
-    private function leaseOptions(): array
+    private function leaseOptions(string $currency): array
     {
-        return Lease::query()->with(['unit.property', 'tenants'])->orderByDesc('start_date')->get()
+        return Lease::query()
+            ->with(['unit.property', 'tenants'])
+            ->with('paymentSchedules', function (Relation $query): void {
+                $query->whereIn('status', [PaymentScheduleStatus::Pending->value, PaymentScheduleStatus::Partial->value])
+                    ->orderBy('period_start');
+            })
+            ->orderByDesc('start_date')->get()
             ->map(fn (Lease $lease) => [
                 'value' => (string) $lease->id,
                 'label' => "{$lease->unit?->name} — {$lease->unit?->property?->name}",
                 'tenants' => $lease->tenants->map(fn (Tenant $tenant) => [
                     'value' => (string) $tenant->id,
                     'label' => $tenant->name,
+                ])->all(),
+                'schedule_periods' => $lease->paymentSchedules->map(fn (PaymentSchedule $schedule) => [
+                    'value' => (string) $schedule->id,
+                    'label' => sprintf(
+                        '%s – %s (%s %s, %s)',
+                        $schedule->period_start->format('j M Y'),
+                        $schedule->period_end->format('j M Y'),
+                        $currency,
+                        number_format((float) $schedule->amount_expected),
+                        $schedule->status->label(),
+                    ),
                 ])->all(),
             ])
             ->all();

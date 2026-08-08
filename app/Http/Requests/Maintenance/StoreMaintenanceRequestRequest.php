@@ -4,6 +4,7 @@ namespace App\Http\Requests\Maintenance;
 
 use App\Enums\MaintenancePriority;
 use App\Enums\MaintenanceStatus;
+use App\Support\UploadLimits;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -31,7 +32,18 @@ class StoreMaintenanceRequestRequest extends FormRequest
             'completed_at' => ['nullable', 'date'],
             'notes' => ['nullable', 'string', 'max:5000'],
             'photos' => ['nullable', 'array'],
-            'photos.*' => ['file', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
+            'photos.*' => ['file', 'image', 'mimes:jpg,jpeg,png,webp', 'max:'.UploadLimits::photoMaxKb()],
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return [
+            'photos.*.file' => 'One of the photos could not be uploaded. It may exceed the server\'s maximum upload size of '.UploadLimits::photoMaxMb().'MB, or the upload was interrupted.',
+            'photos.*.max' => 'Each photo must be '.UploadLimits::photoMaxMb().'MB or smaller.',
         ];
     }
 }

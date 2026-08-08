@@ -17,6 +17,7 @@ class UpdateGeneralSettingsRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'app_name' => ['required', 'string', 'max:255'],
             'company_name' => ['required', 'string', 'max:255'],
             'support_email' => ['required', 'string', 'email', 'max:255'],
             'address' => ['nullable', 'string', 'max:500'],

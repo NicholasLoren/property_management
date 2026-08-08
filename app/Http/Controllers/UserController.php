@@ -127,7 +127,7 @@ class UserController extends Controller
     {
         $query = $filters['tab'] === 'trash' ? User::onlyTrashed()->with('deletedBy') : User::query();
 
-        $query->with(['roles' => fn ($q) => $q->withCount('permissions')]);
+        $query->with(['roles' => fn ($q) => $q->withCount('permissions'), 'media']);
 
         if ($filters['search'] !== '') {
             $query->where(fn ($q) => $q->where('name', 'like', "%{$filters['search']}%")
@@ -171,6 +171,7 @@ class UserController extends Controller
 
         $user->assignRole($request->validated('role'));
         $this->syncLandlordDetail($request, $user);
+        $this->syncAvatar($request, $user);
 
         Inertia::flash('toast', ['type' => 'success', 'message' => "{$user->name} was invited."]);
 
@@ -179,7 +180,7 @@ class UserController extends Controller
 
     public function edit(User $user): Response
     {
-        $user->load(['roles', 'landlordDetail.media']);
+        $user->load(['roles', 'landlordDetail.media', 'media']);
 
         return Inertia::render('users/form', [
             'user' => $this->transformForForm($user),
@@ -193,6 +194,7 @@ class UserController extends Controller
         $user->update($request->safe()->only(['name', 'email', 'status']));
         $user->syncRoles([$request->validated('role')]);
         $this->syncLandlordDetail($request, $user);
+        $this->syncAvatar($request, $user);
 
         Inertia::flash('toast', ['type' => 'success', 'message' => "{$user->name} was updated."]);
 
@@ -201,7 +203,7 @@ class UserController extends Controller
 
     public function show(User $user): Response
     {
-        $user->load(['roles.permissions', 'landlordDetail.media']);
+        $user->load(['roles.permissions', 'landlordDetail.media', 'media']);
 
         return Inertia::render('users/show', [
             'user' => $this->transformForShow($user),
@@ -250,6 +252,7 @@ class UserController extends Controller
             'name' => $user->name,
             'email' => $user->email,
             'role' => $role !== null ? $role->name : 'No role',
+            'avatar' => $user->getFirstMediaUrl('avatar') ?: null,
             'permissions_count' => $role !== null ? $role->permissions_count : 0,
             'status' => $user->status->value,
             'status_label' => $user->status->label(),
@@ -272,6 +275,7 @@ class UserController extends Controller
         $role = $user->roles->first();
         $detail = $user->landlordDetail;
         $document = $detail?->getFirstMedia('id_document');
+        $avatar = $user->getFirstMedia('avatar');
 
         return [
             'id' => $user->id,
@@ -279,8 +283,10 @@ class UserController extends Controller
             'email' => $user->email,
             'role' => $role?->name,
             'status' => $user->status->value,
+            'avatar' => $avatar ? ['name' => $avatar->file_name, 'url' => $avatar->getUrl()] : null,
             'landlord_id_number' => $detail?->id_number,
             'landlord_address' => $detail?->address,
+            'landlord_phone' => $detail?->phone,
             'landlord_notes' => $detail?->notes,
             'landlord_id_document' => $document ? [
                 'name' => $document->file_name,
@@ -303,6 +309,7 @@ class UserController extends Controller
             'name' => $user->name,
             'email' => $user->email,
             'role' => $role?->name,
+            'avatar' => $user->getFirstMediaUrl('avatar') ?: null,
             'permissions' => $role?->permissions->pluck('label')->all() ?? [],
             'status' => $user->status->value,
             'status_label' => $user->status->label(),
@@ -311,6 +318,7 @@ class UserController extends Controller
             'landlord' => $detail !== null ? [
                 'id_number' => $detail->id_number,
                 'address' => $detail->address,
+                'phone' => $detail->phone,
                 'notes' => $detail->notes,
                 'document' => $document ? [
                     'name' => $document->file_name,
@@ -325,6 +333,7 @@ class UserController extends Controller
         $fields = [
             'id_number' => $request->input('landlord_id_number'),
             'address' => $request->input('landlord_address'),
+            'phone' => $request->input('landlord_phone'),
             'notes' => $request->input('landlord_notes'),
         ];
         $hasFields = collect($fields)->filter(fn (?string $value) => filled($value))->isNotEmpty();
@@ -344,6 +353,15 @@ class UserController extends Controller
             $detail->addMediaFromRequest('landlord_id_document')->toMediaCollection('id_document');
         } elseif ($shouldRemove) {
             $detail->clearMediaCollection('id_document');
+        }
+    }
+
+    private function syncAvatar(Request $request, User $user): void
+    {
+        if ($request->hasFile('avatar')) {
+            $user->addMediaFromRequest('avatar')->toMediaCollection('avatar');
+        } elseif ($request->boolean('avatar_remove')) {
+            $user->clearMediaCollection('avatar');
         }
     }
 

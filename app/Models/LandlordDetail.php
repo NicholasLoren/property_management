@@ -18,11 +18,12 @@ use Spatie\MediaLibrary\InteractsWithMedia;
  * @property int $user_id
  * @property string|null $id_number
  * @property string|null $address
+ * @property string|null $phone
  * @property string|null $notes
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['id_number', 'address', 'notes'])]
+#[Fillable(['id_number', 'address', 'phone', 'notes'])]
 class LandlordDetail extends Model implements HasMedia
 {
     use InteractsWithMedia;

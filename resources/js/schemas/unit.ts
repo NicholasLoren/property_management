@@ -11,6 +11,7 @@ export const unitSchema = z.object({
     name: z.string().trim().min(1, 'Name is required.').max(255),
     size: z.string().max(255).optional().nullable(),
     status: z.enum(['vacant', 'occupied']),
+    notes: z.string().max(5000).optional().nullable(),
     price_amount: z
         .string()
         .trim()

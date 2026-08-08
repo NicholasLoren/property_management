@@ -7,6 +7,43 @@ import type { z } from 'zod';
 type Method = 'post' | 'patch' | 'put';
 
 /**
+ * Brings the first invalid field into view and focuses it, so a long form
+ * doesn't leave the user hunting for what failed. Matches on the `id`
+ * attribute against the error key — the app's forms consistently set
+ * `id="<field>"` to match the schema key (see any `form.tsx`), so this
+ * works without every field needing extra wiring. Falls back to the error
+ * key's first path segment (e.g. `features.0.quantity` -> `features`) for
+ * array/nested fields, and no-ops if nothing matches.
+ */
+function focusFirstError(errors: Partial<Record<string, string>>) {
+    const firstKey = Object.keys(errors).find((key) => errors[key]);
+
+    if (!firstKey) {
+        return;
+    }
+
+    const candidates = [firstKey, firstKey.split('.')[0]];
+    let target: HTMLElement | null = null;
+
+    for (const candidate of candidates) {
+        target =
+            document.getElementById(candidate) ??
+            document.querySelector<HTMLElement>(`[name="${candidate}"]`);
+
+        if (target) {
+            break;
+        }
+    }
+
+    if (!target) {
+        return;
+    }
+
+    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    target.focus({ preventScroll: true });
+}
+
+/**
  * Client-side Zod validation in front of a normal Inertia visit. On submit,
  * the schema runs first (blocking the request on failure, same field names
  * the server validates); a request that does go out still gets its
@@ -47,6 +84,7 @@ export function useInertiaZodForm<Schema extends z.ZodObject>(
             }
 
             setErrors(fieldErrors);
+            focusFirstError(fieldErrors);
 
             return;
         }
@@ -69,6 +107,7 @@ export function useInertiaZodForm<Schema extends z.ZodObject>(
             },
             onError: (serverErrors) => {
                 setErrors(serverErrors);
+                focusFirstError(serverErrors);
             },
             onFinish: () => {
                 setProcessing(false);

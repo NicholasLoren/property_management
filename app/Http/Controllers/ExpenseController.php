@@ -11,6 +11,7 @@ use App\Models\Property;
 use App\Models\Transaction;
 use App\Services\CodeGenerator;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -142,6 +143,14 @@ class ExpenseController extends Controller
         return to_route('expenses.index');
     }
 
+    public function show(Transaction $expense): JsonResponse
+    {
+        abort_unless($expense->type === TransactionType::Expense, 404);
+        $expense->load(['property', 'category', 'media', 'createdBy', 'maintenanceRequest']);
+
+        return response()->json(['expense' => $this->transformForShow($expense)]);
+    }
+
     public function edit(Transaction $expense): Response
     {
         abort_unless($expense->type === TransactionType::Expense, 404);
@@ -254,6 +263,31 @@ class ExpenseController extends Controller
             'transaction_date' => $transaction->transaction_date->toDateString(),
             'description' => $transaction->description,
             'receipt' => $receipt ? ['name' => $receipt->file_name, 'url' => $receipt->getUrl()] : null,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function transformForShow(Transaction $transaction): array
+    {
+        $receipt = $transaction->getFirstMedia('receipt');
+
+        return [
+            'id' => $transaction->id,
+            'code' => $transaction->code,
+            'property_name' => $transaction->property?->name,
+            'category_label' => $transaction->category?->name,
+            'amount' => (string) $transaction->amount,
+            'transaction_date' => $transaction->transaction_date->toDateString(),
+            'description' => $transaction->description,
+            'receipt' => $receipt ? ['name' => $receipt->file_name, 'url' => $receipt->getUrl()] : null,
+            'created_by_name' => $transaction->createdBy?->name,
+            'created_at' => $transaction->created_at?->toIso8601String(),
+            'maintenance_request' => $transaction->maintenanceRequest ? [
+                'id' => $transaction->maintenanceRequest->id,
+                'title' => $transaction->maintenanceRequest->title,
+            ] : null,
         ];
     }
 

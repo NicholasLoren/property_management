@@ -15,7 +15,6 @@ import {
     Settings as SettingsIcon,
     ShieldCheck,
     Sparkles,
-    Trash2,
     TrendingDown,
     TrendingUp,
     Users as UsersIcon,
@@ -81,9 +80,7 @@ export function useStewardNavGroups(unreadMessagesCount = 0): NavGroup[] {
                 {
                     title: 'Landlords',
                     icon: KeyRound,
-                    href: can('landlords.view')
-                        ? landlords.index()
-                        : undefined,
+                    href: can('landlords.view') ? landlords.index() : undefined,
                 },
                 {
                     title: 'Properties',
@@ -178,7 +175,6 @@ export function useStewardNavGroups(unreadMessagesCount = 0): NavGroup[] {
                     icon: Activity,
                     href: can('logs.view') ? logs.index() : undefined,
                 },
-                { title: 'Trash', icon: Trash2 },
                 {
                     title: 'Roles',
                     icon: ShieldCheck,

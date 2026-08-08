@@ -7,7 +7,9 @@ import { z } from 'zod';
  */
 export const leaseSchema = z.object({
     unit_id: z.string().trim().min(1, 'Unit is required.'),
-    tenant_ids: z.array(z.number().int().positive()).min(1, 'Add at least one tenant.'),
+    tenant_ids: z
+        .array(z.number().int().positive())
+        .min(1, 'Add at least one tenant.'),
     start_date: z.string().trim().min(1, 'Start date is required.'),
     end_date: z.string().trim().min(1, 'End date is required.'),
     rent_amount: z
@@ -18,13 +20,26 @@ export const leaseSchema = z.object({
             (value) => !Number.isNaN(Number(value)) && Number(value) >= 0,
             'Enter a valid amount.',
         ),
-    billing_period: z.enum(['monthly', 'quarterly', 'yearly']),
+    billing_period: z.enum(['monthly', 'quarterly', 'yearly', 'custom']),
+    billing_day: z
+        .number()
+        .int()
+        .min(1, 'Pick a day between 1 and 31.')
+        .max(31, 'Pick a day between 1 and 31.'),
+    custom_interval_months: z
+        .number()
+        .int()
+        .min(1)
+        .max(24)
+        .optional()
+        .nullable(),
     security_deposit: z
         .string()
         .optional()
         .nullable()
         .refine(
-            (value) => !value || (!Number.isNaN(Number(value)) && Number(value) >= 0),
+            (value) =>
+                !value || (!Number.isNaN(Number(value)) && Number(value) >= 0),
             'Enter a valid amount.',
         ),
     status: z.enum(['draft', 'active', 'ended', 'terminated']),

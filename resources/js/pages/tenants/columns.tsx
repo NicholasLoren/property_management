@@ -1,7 +1,8 @@
 import { Link } from '@inertiajs/react';
 import type { ColumnDef } from '@tanstack/react-table';
-import { Eye, Pencil, Trash2, Undo2, UserRound } from 'lucide-react';
+import { Eye, Pencil, Trash2, Undo2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { EntityAvatar } from '@/components/ui/entity-avatar';
 import tenants from '@/routes/tenants';
 import type { TenantRow } from '@/types/tenants';
 
@@ -40,9 +41,12 @@ function TenantIdentityCell({ tenant }: { tenant: TenantRow }) {
             href={tenants.show(tenant)}
             className="flex items-center gap-2.5 hover:opacity-80"
         >
-            <span className="flex size-[34px] shrink-0 items-center justify-center rounded-lg bg-secondary text-text-tertiary">
-                <UserRound className="size-4" />
-            </span>
+            <EntityAvatar
+                name={tenant.name}
+                seed={tenant.id}
+                imageUrl={tenant.avatar}
+                className="size-[34px] text-[13px]"
+            />
             <div>
                 <div className="text-[13px] font-semibold">{tenant.name}</div>
                 <div className="text-xs text-text-tertiary">

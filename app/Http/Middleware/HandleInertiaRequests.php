@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use App\Settings\GeneralSettings;
 use App\Support\Branding;
+use App\Support\UploadLimits;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -49,11 +50,20 @@ class HandleInertiaRequests extends Middleware
             'currency' => $general->default_currency,
             'timezone' => $general->timezone,
             'auth' => [
-                'user' => $user ? [...$user->toArray(), 'role' => $user->getRoleNames()->first()] : null,
+                'user' => $user ? [
+                    ...$user->toArray(),
+                    'role' => $user->getRoleNames()->first(),
+                    'avatar' => $user->getFirstMediaUrl('avatar') ?: null,
+                ] : null,
                 'permissions' => $user ? $user->getAllPermissions()->pluck('name')->all() : [],
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'unreadMessagesCount' => $user ? $user->unreadMessagesCount() : 0,
+            'unreadNotificationsCount' => $user ? $user->unreadNotifications()->count() : 0,
+            'limits' => [
+                'photoMaxMb' => UploadLimits::photoMaxMb(),
+                'documentMaxMb' => UploadLimits::documentMaxMb(),
+            ],
         ];
     }
 

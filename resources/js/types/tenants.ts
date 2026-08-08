@@ -11,6 +11,7 @@ export type TenantRow = {
     name: string;
     email: string | null;
     phone: string | null;
+    avatar?: string | null;
     active_lease: TenantActiveLease | null;
     created_at: string | null;
 };

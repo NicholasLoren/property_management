@@ -3,7 +3,8 @@ import type { ColumnDef } from '@tanstack/react-table';
 import { Pencil, Shield, Trash2, Undo2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { avatarTone, avatarToneClass, badgeToneClass } from '@/lib/avatar-tone';
+import { EntityAvatar } from '@/components/ui/entity-avatar';
+import { avatarTone, badgeToneClass } from '@/lib/avatar-tone';
 import users from '@/routes/users';
 import type { UserRow } from '@/types/users';
 
@@ -58,23 +59,18 @@ function formatLastActive(iso: string | null, status: string): string {
     return formatRelative(iso);
 }
 
-function UserIdentityCell({
-    user,
-    getInitials,
-}: {
-    user: UserRow;
-    getInitials: (name: string) => string;
-}) {
+function UserIdentityCell({ user }: { user: UserRow }) {
     return (
         <Link
             href={users.show(user)}
             className="flex items-center gap-2.5 hover:opacity-80"
         >
-            <span
-                className={`flex size-[34px] shrink-0 items-center justify-center rounded-full font-display text-[13px] font-bold text-accent-contrast ${avatarToneClass[avatarTone(user.id)]}`}
-            >
-                {getInitials(user.name)}
-            </span>
+            <EntityAvatar
+                name={user.name}
+                seed={user.id}
+                imageUrl={user.avatar}
+                className="size-[34px] text-[13px]"
+            />
             <div>
                 <div className="text-[13px] font-semibold">{user.name}</div>
                 <div className="text-xs text-text-tertiary">{user.email}</div>
@@ -100,12 +96,7 @@ export function getUserColumns(opts: {
             header: 'User',
             enableHiding: false,
             meta: { label: 'User', sortKey: 'name' },
-            cell: ({ row }) => (
-                <UserIdentityCell
-                    user={row.original}
-                    getInitials={opts.getInitials}
-                />
-            ),
+            cell: ({ row }) => <UserIdentityCell user={row.original} />,
         },
         {
             id: 'role',
@@ -209,12 +200,7 @@ export function getUserTrashColumns(opts: {
             header: 'User',
             enableHiding: false,
             meta: { label: 'User' },
-            cell: ({ row }) => (
-                <UserIdentityCell
-                    user={row.original}
-                    getInitials={opts.getInitials}
-                />
-            ),
+            cell: ({ row }) => <UserIdentityCell user={row.original} />,
         },
         {
             id: 'role',

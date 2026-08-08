@@ -20,10 +20,8 @@ import {
     getIncomeColumns,
     getIncomeTrashColumns,
 } from '@/pages/incomes/columns';
-import type {
-    ActiveIncomeRow,
-    TrashIncomeRow,
-} from '@/pages/incomes/columns';
+import type { ActiveIncomeRow, TrashIncomeRow } from '@/pages/incomes/columns';
+import { IncomeDetailsSheet } from '@/pages/incomes/income-details-sheet';
 import incomes from '@/routes/incomes';
 import type { IncomeRow } from '@/types/transactions';
 
@@ -69,6 +67,7 @@ export default function IncomesIndex({
     const [search, setSearch] = useState(filters.search);
     const [syncedSearch, setSyncedSearch] = useState(filters.search);
     const searchDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const [viewingIncomeId, setViewingIncomeId] = useState<number | null>(null);
 
     if (filters.search !== syncedSearch) {
         setSyncedSearch(filters.search);
@@ -82,8 +81,12 @@ export default function IncomesIndex({
             incomes.index().url,
             {
                 search: next.search || undefined,
-                category_id: next.category_id.length ? next.category_id : undefined,
-                property_id: next.property_id.length ? next.property_id : undefined,
+                category_id: next.category_id.length
+                    ? next.category_id
+                    : undefined,
+                property_id: next.property_id.length
+                    ? next.property_id
+                    : undefined,
                 sort: next.sort,
                 dir: next.dir,
                 per_page: next.per_page,
@@ -151,11 +154,17 @@ export default function IncomesIndex({
     }
 
     function forceDelete(income: IncomeRow) {
-        if (!confirm('Permanently delete this income entry? This cannot be undone.')) {
+        if (
+            !confirm(
+                'Permanently delete this income entry? This cannot be undone.',
+            )
+        ) {
             return;
         }
 
-        router.delete(incomes.forceDelete(income).url, { preserveScroll: true });
+        router.delete(incomes.forceDelete(income).url, {
+            preserveScroll: true,
+        });
     }
 
     const canEdit = can('incomes.edit');
@@ -163,12 +172,22 @@ export default function IncomesIndex({
 
     const activeColumns = useMemo(
         () =>
-            getIncomeColumns({ canEdit, canDelete, currency, onTrash: moveToTrash }),
+            getIncomeColumns({
+                canEdit,
+                canDelete,
+                currency,
+                onTrash: moveToTrash,
+                onView: (income) => setViewingIncomeId(income.id),
+            }),
         [canEdit, canDelete, currency],
     );
 
     const trashColumns = useMemo(
-        () => getIncomeTrashColumns({ onRestore: restore, onForceDelete: forceDelete }),
+        () =>
+            getIncomeTrashColumns({
+                onRestore: restore,
+                onForceDelete: forceDelete,
+            }),
         [],
     );
 
@@ -215,9 +234,14 @@ export default function IncomesIndex({
                         {categories.map((category) => (
                             <DropdownMenuCheckboxItem
                                 key={category.value}
-                                checked={filters.category_id.includes(category.value)}
+                                checked={filters.category_id.includes(
+                                    category.value,
+                                )}
                                 onCheckedChange={(checked) =>
-                                    toggleCategoryFilter(category.value, checked === true)
+                                    toggleCategoryFilter(
+                                        category.value,
+                                        checked === true,
+                                    )
                                 }
                                 onSelect={(e) => e.preventDefault()}
                             >
@@ -229,9 +253,14 @@ export default function IncomesIndex({
                         {properties.map((property) => (
                             <DropdownMenuCheckboxItem
                                 key={property.value}
-                                checked={filters.property_id.includes(property.value)}
+                                checked={filters.property_id.includes(
+                                    property.value,
+                                )}
                                 onCheckedChange={(checked) =>
-                                    togglePropertyFilter(property.value, checked === true)
+                                    togglePropertyFilter(
+                                        property.value,
+                                        checked === true,
+                                    )
                                 }
                                 onSelect={(e) => e.preventDefault()}
                             >
@@ -271,7 +300,9 @@ export default function IncomesIndex({
                 incomes.index().url,
                 {
                     search: filters.search || undefined,
-                    category_id: filters.category_id.length ? filters.category_id : undefined,
+                    category_id: filters.category_id.length
+                        ? filters.category_id
+                        : undefined,
                     property_id: filters.property_id.length
                         ? filters.property_id
                         : undefined,
@@ -329,8 +360,14 @@ export default function IncomesIndex({
                                 type="button"
                                 onClick={() =>
                                     chip.group === 'category_id'
-                                        ? toggleCategoryFilter(chip.value, false)
-                                        : togglePropertyFilter(chip.value, false)
+                                        ? toggleCategoryFilter(
+                                              chip.value,
+                                              false,
+                                          )
+                                        : togglePropertyFilter(
+                                              chip.value,
+                                              false,
+                                          )
                                 }
                                 className="rounded-full p-0.5 hover:bg-black/10"
                             >
@@ -356,9 +393,13 @@ export default function IncomesIndex({
                     emptyState={{
                         icon: TrendingUp,
                         title: 'No income entries yet',
-                        description: 'Log your first non-rent income against a property.',
+                        description:
+                            'Log your first non-rent income against a property.',
                         action: can('incomes.add')
-                            ? { label: 'Add your first income', href: incomes.create().url }
+                            ? {
+                                  label: 'Add your first income',
+                                  href: incomes.create().url,
+                              }
                             : undefined,
                     }}
                     {...sharedTableProps}
@@ -371,11 +412,17 @@ export default function IncomesIndex({
                     emptyState={{
                         icon: TrendingUp,
                         title: 'Trash is empty',
-                        description: 'Income entries you move to trash will show up here.',
+                        description:
+                            'Income entries you move to trash will show up here.',
                     }}
                     {...sharedTableProps}
                 />
             )}
+
+            <IncomeDetailsSheet
+                incomeId={viewingIncomeId}
+                onOpenChange={(open) => !open && setViewingIncomeId(null)}
+            />
         </>
     );
 }

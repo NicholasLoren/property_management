@@ -4,6 +4,7 @@ namespace App\Http\Requests\Properties;
 
 use App\Enums\PropertyType;
 use App\Models\User;
+use App\Support\UploadLimits;
 use Closure;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -41,9 +42,20 @@ class UpdatePropertyRequest extends FormRequest
             'amenity_ids' => ['nullable', 'array'],
             'amenity_ids.*' => [Rule::exists('amenities', 'id')],
             'photos' => ['nullable', 'array'],
-            'photos.*' => ['file', 'image', 'mimes:jpg,jpeg,png,webp', 'max:5120'],
+            'photos.*' => ['file', 'image', 'mimes:jpg,jpeg,png,webp', 'max:'.UploadLimits::photoMaxKb()],
             'remove_photo_ids' => ['nullable', 'array'],
             'remove_photo_ids.*' => ['integer'],
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return [
+            'photos.*.file' => 'One of the photos could not be uploaded. It may exceed the server\'s maximum upload size of '.UploadLimits::photoMaxMb().'MB, or the upload was interrupted.',
+            'photos.*.max' => 'Each photo must be '.UploadLimits::photoMaxMb().'MB or smaller.',
         ];
     }
 }

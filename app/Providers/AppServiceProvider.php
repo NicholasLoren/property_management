@@ -8,6 +8,7 @@ use App\Models\Tenant;
 use App\Models\Unit;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Relations\Relation;
+use Illuminate\Foundation\DevCommands;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -32,6 +33,14 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->configureDefaults();
+
+        // `php artisan dev` (composer run dev) doesn't start the task
+        // scheduler by default, so scheduled jobs like the trash purge
+        // never fire locally without this — only Forge's production cron
+        // triggers `schedule:run` otherwise.
+        if ($this->app->environment('local')) {
+            DevCommands::artisan('schedule:work', 'schedule');
+        }
 
         // Super Admin is protected (Role::is_system) and bypasses every
         // permission check, rather than needing every permission attached.

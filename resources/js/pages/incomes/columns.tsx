@@ -1,6 +1,6 @@
 import { Link } from '@inertiajs/react';
 import type { ColumnDef } from '@tanstack/react-table';
-import { Pencil, Trash2, TrendingUp, Undo2 } from 'lucide-react';
+import { Eye, Pencil, Trash2, TrendingUp, Undo2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { formatCurrency } from '@/lib/currency';
@@ -64,6 +64,7 @@ export function getIncomeColumns(opts: {
     canDelete: boolean;
     currency: string;
     onTrash: (income: ActiveIncomeRow) => void;
+    onView: (income: ActiveIncomeRow) => void;
 }): ColumnDef<ActiveIncomeRow>[] {
     return [
         {
@@ -110,6 +111,15 @@ export function getIncomeColumns(opts: {
 
                 return (
                     <div className="flex items-center justify-end gap-0.5">
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="size-8"
+                            title="View details"
+                            onClick={() => opts.onView(income)}
+                        >
+                            <Eye className="size-[15px]" />
+                        </Button>
                         {opts.canEdit && (
                             <Button
                                 variant="ghost"

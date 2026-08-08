@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\CompanyProfile;
 use App\Models\User;
+use App\Settings\BillingSettings;
 use App\Settings\BrandingSettings;
 use App\Settings\GeneralSettings;
 use App\Settings\NotificationSettings;
@@ -67,6 +68,9 @@ class SettingsTest extends TestCase
                 ->has('sms')
                 ->has('notifications')
                 ->where('sms.africastalking_api_key', '')
+                ->has('timezones')
+                ->where('timezones.0.value', fn (string $value) => in_array($value, \DateTimeZone::listIdentifiers(), true))
+                ->where('timezones.0.label', fn (string $label) => (bool) preg_match('/\(UTC[+-]\d{2}:\d{2}\)$/', $label))
             );
     }
 
@@ -105,6 +109,7 @@ class SettingsTest extends TestCase
 
         $this->actingAs($admin)
             ->patch(route('company-settings.update-general'), [
+                'app_name' => 'Kampala Estates',
                 'company_name' => 'Kampala Estates Ltd',
                 'support_email' => 'help@kampalaestates.co.ug',
                 'address' => 'Plot 12, Kira Road, Kampala',
@@ -116,6 +121,7 @@ class SettingsTest extends TestCase
             ->assertRedirect();
 
         $settings = app(GeneralSettings::class);
+        $this->assertSame('Kampala Estates', $settings->app_name);
         $this->assertSame('Kampala Estates Ltd', $settings->company_name);
         $this->assertSame('Plot 12, Kira Road, Kampala', $settings->address);
         $this->assertSame('+256700000000', $settings->phone);
@@ -165,12 +171,13 @@ class SettingsTest extends TestCase
         $this->assertNotNull($icon->getUrl('icon-maskable-512'));
     }
 
-    public function test_manifest_reflects_company_name_and_uploaded_app_icon(): void
+    public function test_manifest_reflects_app_name_and_uploaded_app_icon(): void
     {
         Storage::fake('public');
         $admin = $this->superAdmin();
 
         $this->actingAs($admin)->patch(route('company-settings.update-general'), [
+            'app_name' => 'Kampala Estates',
             'company_name' => 'Kampala Estates Ltd',
             'support_email' => 'help@kampalaestates.co.ug',
             'address' => '',
@@ -190,7 +197,7 @@ class SettingsTest extends TestCase
         $response = $this->get('/manifest.webmanifest')->assertOk();
         $manifest = $response->json();
 
-        $this->assertSame('Kampala Estates Ltd', $manifest['name']);
+        $this->assertSame('Kampala Estates', $manifest['name']);
         $this->assertSame('#123ABC', $manifest['theme_color']);
         $this->assertStringContainsString('icon-192', $manifest['icons'][0]['src']);
     }
@@ -316,6 +323,40 @@ class SettingsTest extends TestCase
         $settings = app(NotificationSettings::class);
         $this->assertFalse($settings->email_enabled);
         $this->assertTrue($settings->sms_enabled);
+    }
+
+    public function test_admin_can_update_billing_settings(): void
+    {
+        $admin = $this->superAdmin();
+
+        $this->actingAs($admin)
+            ->patch(route('company-settings.update-billing'), [
+                'days_in_month' => 30,
+                'rent_reminder_days_before' => 5,
+                'rent_overdue_reminder_days_after' => 2,
+                'rent_overdue_reminder_repeat_days' => 7,
+            ])
+            ->assertRedirect();
+
+        $settings = app(BillingSettings::class);
+        $this->assertSame(30, $settings->days_in_month);
+        $this->assertSame(5, $settings->rent_reminder_days_before);
+        $this->assertSame(2, $settings->rent_overdue_reminder_days_after);
+        $this->assertSame(7, $settings->rent_overdue_reminder_repeat_days);
+    }
+
+    public function test_billing_settings_reject_an_out_of_range_day_count(): void
+    {
+        $admin = $this->superAdmin();
+
+        $this->actingAs($admin)
+            ->patch(route('company-settings.update-billing'), [
+                'days_in_month' => 45,
+                'rent_reminder_days_before' => 5,
+                'rent_overdue_reminder_days_after' => 2,
+                'rent_overdue_reminder_repeat_days' => 7,
+            ])
+            ->assertSessionHasErrors('days_in_month');
     }
 
     public function test_admin_can_send_a_test_sms(): void

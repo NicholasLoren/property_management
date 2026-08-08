@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { FileDropzone } from '@/components/ui/file-dropzone';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { RequiredAsterisk } from '@/components/ui/required-asterisk';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import {
     Select,
@@ -23,12 +24,14 @@ import { paymentSchema } from '@/schemas/payment';
 import type { PaymentReceipt } from '@/types/payments';
 
 type Option = { value: string; label: string };
-type LeaseOption = Option & { tenants: Option[] };
+type LeaseOption = Option & { tenants: Option[]; schedule_periods: Option[] };
 
 type PaymentFormRow = {
     id: number;
     lease_id: string;
     lease_label: string | null;
+    payment_schedule_id: string | null;
+    lease_schedule_periods: Option[];
     tenant_id: string | null;
     lease_tenants: Option[];
     amount: string;
@@ -59,6 +62,7 @@ export default function PaymentForm({
         paymentSchema,
         {
             lease_id: payment?.lease_id ?? '',
+            payment_schedule_id: payment?.payment_schedule_id ?? '',
             tenant_id: payment?.tenant_id ?? '',
             amount: payment?.amount ?? '',
             payment_date: payment?.payment_date ?? '',
@@ -86,7 +90,20 @@ export default function PaymentForm({
             return payment?.lease_tenants ?? [];
         }
 
-        return leases.find((lease) => lease.value === data.lease_id)?.tenants ?? [];
+        return (
+            leases.find((lease) => lease.value === data.lease_id)?.tenants ?? []
+        );
+    }, [isEdit, payment, leases, data.lease_id]);
+
+    const schedulePeriodOptions = useMemo(() => {
+        if (isEdit) {
+            return payment?.lease_schedule_periods ?? [];
+        }
+
+        return (
+            leases.find((lease) => lease.value === data.lease_id)
+                ?.schedule_periods ?? []
+        );
     }, [isEdit, payment, leases, data.lease_id]);
 
     return (
@@ -125,7 +142,10 @@ export default function PaymentForm({
             >
                 <div className="grid gap-4 sm:grid-cols-2">
                     <div className="grid gap-1.5">
-                        <Label htmlFor="lease_id">Lease</Label>
+                        <Label htmlFor="lease_id">
+                            Lease
+                            <RequiredAsterisk />
+                        </Label>
                         {isEdit ? (
                             <div className="flex h-9 items-center rounded-md border border-border-soft bg-secondary px-3 text-sm text-text-secondary">
                                 {payment!.lease_label}
@@ -138,6 +158,7 @@ export default function PaymentForm({
                                     onChange={(value) => {
                                         setField('lease_id', value ?? '');
                                         setField('tenant_id', '');
+                                        setField('payment_schedule_id', '');
                                     }}
                                     options={leases}
                                     placeholder="Select a lease…"
@@ -146,6 +167,27 @@ export default function PaymentForm({
                                 <InputError message={errors.lease_id} />
                             </>
                         )}
+                    </div>
+
+                    <div className="grid gap-1.5">
+                        <Label htmlFor="payment_schedule_id">
+                            Rent period{' '}
+                            <span className="font-normal text-text-tertiary">
+                                (optional)
+                            </span>
+                        </Label>
+                        <SearchableSelect
+                            id="payment_schedule_id"
+                            value={data.payment_schedule_id || null}
+                            onChange={(value) =>
+                                setField('payment_schedule_id', value ?? '')
+                            }
+                            options={schedulePeriodOptions}
+                            placeholder="Not tied to a specific period"
+                            searchPlaceholder="Search periods…"
+                            disabled={schedulePeriodOptions.length === 0}
+                        />
+                        <InputError message={errors.payment_schedule_id} />
                     </div>
 
                     <div className="grid gap-1.5">
@@ -158,7 +200,9 @@ export default function PaymentForm({
                         <SearchableSelect
                             id="tenant_id"
                             value={data.tenant_id || null}
-                            onChange={(value) => setField('tenant_id', value ?? '')}
+                            onChange={(value) =>
+                                setField('tenant_id', value ?? '')
+                            }
                             options={tenantOptions}
                             placeholder="Any / unspecified"
                             searchPlaceholder="Search tenants…"
@@ -168,7 +212,10 @@ export default function PaymentForm({
                     </div>
 
                     <div className="grid gap-1.5">
-                        <Label htmlFor="amount">Amount</Label>
+                        <Label htmlFor="amount">
+                            Amount
+                            <RequiredAsterisk />
+                        </Label>
                         <Input
                             id="amount"
                             inputMode="decimal"
@@ -180,18 +227,26 @@ export default function PaymentForm({
                     </div>
 
                     <div className="grid gap-1.5">
-                        <Label htmlFor="payment_date">Payment date</Label>
+                        <Label htmlFor="payment_date">
+                            Payment date
+                            <RequiredAsterisk />
+                        </Label>
                         <Input
                             id="payment_date"
                             type="date"
                             value={data.payment_date}
-                            onChange={(e) => setField('payment_date', e.target.value)}
+                            onChange={(e) =>
+                                setField('payment_date', e.target.value)
+                            }
                         />
                         <InputError message={errors.payment_date} />
                     </div>
 
                     <div className="grid gap-1.5">
-                        <Label htmlFor="method">Method</Label>
+                        <Label htmlFor="method">
+                            Method
+                            <RequiredAsterisk />
+                        </Label>
                         <Select
                             value={data.method}
                             onValueChange={(value) =>
@@ -203,7 +258,10 @@ export default function PaymentForm({
                             </SelectTrigger>
                             <SelectContent>
                                 {methods.map((method) => (
-                                    <SelectItem key={method.value} value={method.value}>
+                                    <SelectItem
+                                        key={method.value}
+                                        value={method.value}
+                                    >
                                         {method.label}
                                     </SelectItem>
                                 ))}
@@ -213,7 +271,10 @@ export default function PaymentForm({
                     </div>
 
                     <div className="grid gap-1.5">
-                        <Label htmlFor="status">Status</Label>
+                        <Label htmlFor="status">
+                            Status
+                            <RequiredAsterisk />
+                        </Label>
                         <Select
                             value={data.status}
                             onValueChange={(value) =>
@@ -225,7 +286,10 @@ export default function PaymentForm({
                             </SelectTrigger>
                             <SelectContent>
                                 {statuses.map((status) => (
-                                    <SelectItem key={status.value} value={status.value}>
+                                    <SelectItem
+                                        key={status.value}
+                                        value={status.value}
+                                    >
                                         {status.label}
                                     </SelectItem>
                                 ))}
@@ -244,7 +308,9 @@ export default function PaymentForm({
                         <Input
                             id="reference"
                             value={data.reference ?? ''}
-                            onChange={(e) => setField('reference', e.target.value)}
+                            onChange={(e) =>
+                                setField('reference', e.target.value)
+                            }
                             placeholder="Transaction / receipt no."
                         />
                         <InputError message={errors.reference} />
@@ -281,8 +347,14 @@ export default function PaymentForm({
                             setField('receipt', file);
                             setField('receipt_remove', false);
                         }}
-                        existing={!data.receipt_remove ? (payment?.receipt ?? null) : null}
-                        onRemoveExisting={() => setField('receipt_remove', true)}
+                        existing={
+                            !data.receipt_remove
+                                ? (payment?.receipt ?? null)
+                                : null
+                        }
+                        onRemoveExisting={() =>
+                            setField('receipt_remove', true)
+                        }
                         error={errors.receipt}
                     />
                 </div>

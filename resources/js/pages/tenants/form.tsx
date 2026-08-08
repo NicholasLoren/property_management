@@ -1,11 +1,13 @@
 import { Head, Link } from '@inertiajs/react';
 import type { FormEvent } from 'react';
+import { useState } from 'react';
 import { Breadcrumbs } from '@/components/breadcrumbs';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import { FileDropzone } from '@/components/ui/file-dropzone';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { RequiredAsterisk } from '@/components/ui/required-asterisk';
 import { Spinner } from '@/components/ui/spinner';
 import { Textarea } from '@/components/ui/textarea';
 import { useInertiaZodForm } from '@/hooks/use-inertia-zod-form';
@@ -22,6 +24,7 @@ type TenantFormRow = {
     address: string | null;
     notes: string | null;
     id_document: TenantDocument | null;
+    avatar: TenantDocument | null;
 };
 
 type PageProps = {
@@ -30,6 +33,7 @@ type PageProps = {
 
 export default function TenantForm({ tenant }: PageProps) {
     const isEdit = Boolean(tenant);
+    const [existingAvatarRemoved, setExistingAvatarRemoved] = useState(false);
 
     const { data, setField, errors, processing, submit } = useInertiaZodForm(
         tenantSchema,
@@ -42,8 +46,13 @@ export default function TenantForm({ tenant }: PageProps) {
             notes: tenant?.notes ?? '',
             id_document: null,
             id_document_remove: false,
+            avatar: null,
+            avatar_remove: false,
         },
     );
+
+    const existingAvatar =
+        !existingAvatarRemoved && tenant ? tenant.avatar : null;
 
     function handleSubmit(e: FormEvent) {
         e.preventDefault();
@@ -89,9 +98,32 @@ export default function TenantForm({ tenant }: PageProps) {
                 noValidate
                 className="w-full rounded-[14px] border border-border-soft bg-card p-5 shadow-sm"
             >
+                <div className="mb-5 border-b border-border-soft pb-4">
+                    <Label className="mb-3">
+                        Avatar{' '}
+                        <span className="font-normal text-text-tertiary">
+                            (optional)
+                        </span>
+                    </Label>
+                    <FileDropzone
+                        accept="image/jpeg,image/png,image/webp"
+                        value={data.avatar ?? null}
+                        onChange={(file) => setField('avatar', file)}
+                        existing={existingAvatar}
+                        onRemoveExisting={() => {
+                            setExistingAvatarRemoved(true);
+                            setField('avatar_remove', true);
+                        }}
+                        error={errors.avatar}
+                    />
+                </div>
+
                 <div className="grid gap-4 sm:grid-cols-2">
                     <div className="grid gap-1.5">
-                        <Label htmlFor="name">Name</Label>
+                        <Label htmlFor="name">
+                            Name
+                            <RequiredAsterisk />
+                        </Label>
                         <Input
                             id="name"
                             autoFocus

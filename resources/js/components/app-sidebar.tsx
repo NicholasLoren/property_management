@@ -1,21 +1,27 @@
 import { Link, usePage } from '@inertiajs/react';
-import { Download, KeyRound, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
-import { Fragment } from 'react';
+import {
+    Download,
+    KeyRound,
+    PanelLeftClose,
+    PanelLeftOpen,
+    Search,
+    X,
+} from 'lucide-react';
+import { Fragment, useMemo, useState } from 'react';
 import { useStewardNavGroups, StewardNavItem } from '@/components/steward-nav';
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { EntityAvatar } from '@/components/ui/entity-avatar';
 import {
     Tooltip,
     TooltipContent,
     TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { UserMenuContent } from '@/components/user-menu-content';
-import { useInitials } from '@/hooks/use-initials';
 import { usePwaInstall } from '@/hooks/use-pwa-install';
-import { avatarTone, avatarToneClass } from '@/lib/avatar-tone';
 import { cn } from '@/lib/utils';
 import { dashboard } from '@/routes';
 
@@ -31,9 +37,26 @@ export function AppSidebar({
     onToggleCollapse,
 }: Props) {
     const { auth, unreadMessagesCount, name, icon } = usePage().props;
-    const getInitials = useInitials();
     const groups = useStewardNavGroups(unreadMessagesCount);
     const { canInstall, promptInstall } = usePwaInstall();
+    const [filter, setFilter] = useState('');
+
+    const visibleGroups = useMemo(() => {
+        const query = filter.trim().toLowerCase();
+
+        if (!query) {
+            return groups;
+        }
+
+        return groups
+            .map((group) => ({
+                ...group,
+                items: group.items.filter((item) =>
+                    item.title.toLowerCase().includes(query),
+                ),
+            }))
+            .filter((group) => group.items.length > 0);
+    }, [groups, filter]);
 
     return (
         <aside
@@ -75,13 +98,44 @@ export function AppSidebar({
                 </Link>
             </div>
 
+            {!collapsed && (
+                <div className="px-3 pt-3">
+                    <div className="relative">
+                        <Search className="pointer-events-none absolute top-1/2 left-2.5 size-[13px] -translate-y-1/2 text-text-tertiary" />
+                        <input
+                            type="text"
+                            value={filter}
+                            onChange={(e) => setFilter(e.target.value)}
+                            placeholder="Filter menu…"
+                            aria-label="Filter menu"
+                            className="h-[30px] w-full rounded-[6px] border border-border-soft bg-secondary/50 pr-7 pl-7 text-[12.5px] text-foreground placeholder:text-text-tertiary focus:border-accent-brand focus:bg-surface focus:ring-1 focus:ring-accent-brand focus:outline-none"
+                        />
+                        {filter && (
+                            <button
+                                type="button"
+                                onClick={() => setFilter('')}
+                                aria-label="Clear filter"
+                                className="absolute top-1/2 right-2 -translate-y-1/2 text-text-tertiary hover:text-foreground"
+                            >
+                                <X className="size-[13px]" />
+                            </button>
+                        )}
+                    </div>
+                </div>
+            )}
+
             <nav
                 className={cn(
                     'flex-1 overflow-y-auto py-3.5',
                     collapsed ? 'px-2' : 'px-3',
                 )}
             >
-                {groups.map((group, i) => (
+                {visibleGroups.length === 0 && (
+                    <p className="px-2.5 text-[12.5px] text-text-tertiary">
+                        No matching menu items.
+                    </p>
+                )}
+                {visibleGroups.map((group, i) => (
                     <Fragment key={group.label ?? i}>
                         <div className="mb-[18px] last:mb-0">
                             {group.label && !collapsed && (
@@ -162,11 +216,12 @@ export function AppSidebar({
                                             'w-full flex-none justify-center',
                                     )}
                                 >
-                                    <span
-                                        className={`flex size-[26px] shrink-0 items-center justify-center rounded-full font-display text-[11px] font-bold text-accent-contrast ${avatarToneClass[avatarTone(auth.user.id)]}`}
-                                    >
-                                        {getInitials(auth.user.name)}
-                                    </span>
+                                    <EntityAvatar
+                                        name={auth.user.name}
+                                        seed={auth.user.id}
+                                        imageUrl={auth.user.avatar}
+                                        className="size-[26px] text-[11px]"
+                                    />
                                     {!collapsed && (
                                         <span className="min-w-0 flex-1">
                                             <span className="block truncate text-[12.5px] font-semibold text-foreground">

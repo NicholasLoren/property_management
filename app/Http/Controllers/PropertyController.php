@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\PropertyType;
+use App\Enums\TransactionType;
 use App\Enums\UnitStatus;
 use App\Exports\PropertiesExport;
 use App\Http\Requests\Properties\StorePropertyRequest;
@@ -222,7 +223,14 @@ class PropertyController extends Controller
 
     public function show(Property $property): Response
     {
-        $property->load(['landlord', 'amenities', 'media', 'units.currentPrice', 'units.features']);
+        $property->load([
+            'landlord.landlordDetail',
+            'amenities',
+            'media',
+            'units.currentPrice',
+            'units.features',
+            'units.unitType',
+        ]);
 
         return Inertia::render('properties/show', [
             'property' => $this->transformForShow($property),
@@ -339,6 +347,11 @@ class PropertyController extends Controller
     private function transformForShow(Property $property): array
     {
         $units = $property->units;
+        $landlordDetail = $property->landlord?->landlordDetail;
+
+        $totalIncome = (string) $property->transactions()->where('type', TransactionType::Income)->sum('amount');
+        $totalExpenses = (string) $property->transactions()->where('type', TransactionType::Expense)->sum('amount');
+        $unitsSummary = $this->unitsSummary($units);
 
         return [
             'id' => $property->id,
@@ -354,6 +367,9 @@ class PropertyController extends Controller
                 'id' => $property->landlord->id,
                 'name' => $property->landlord->name,
                 'email' => $property->landlord->email,
+                'phone' => $landlordDetail?->phone,
+                'address' => $landlordDetail?->address,
+                'avatar' => $property->landlord->getFirstMediaUrl('avatar') ?: null,
             ] : null,
             'amenities' => $property->amenities->pluck('name')->all(),
             'photos' => $property->media->map(fn (Media $media): array => [
@@ -365,13 +381,28 @@ class PropertyController extends Controller
             'units' => $units->map(fn (Unit $unit): array => [
                 'id' => $unit->id,
                 'name' => $unit->name,
+                'unit_type_label' => $unit->unitType?->label,
+                'status' => $unit->status->value,
+                'status_label' => $unit->status->label(),
+                'current_price' => $unit->currentPrice !== null ? [
+                    'amount' => (string) $unit->currentPrice->amount,
+                    'billing_period_label' => $unit->currentPrice->billing_period->label(),
+                ] : null,
             ])->all(),
             'quick_facts' => [
-                ...$this->unitsSummary($units),
+                ...$unitsSummary,
                 'bedrooms' => $this->featureTotal($units, 'Bedroom'),
                 'bathrooms' => $this->featureTotal($units, 'Bathroom'),
             ],
             'price_summary' => $this->priceSummary($units),
+            'performance' => [
+                'total_income' => $totalIncome,
+                'total_expenses' => $totalExpenses,
+                'net' => (string) (((float) $totalIncome) - ((float) $totalExpenses)),
+                'occupancy_rate' => $unitsSummary['total'] > 0
+                    ? (int) round(($unitsSummary['occupied'] / $unitsSummary['total']) * 100)
+                    : null,
+            ],
             'created_at' => $property->created_at?->toIso8601String(),
         ];
     }

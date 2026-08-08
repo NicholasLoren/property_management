@@ -8,6 +8,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PhotoGalleryInput } from '@/components/ui/photo-gallery-input';
+import { RequiredAsterisk } from '@/components/ui/required-asterisk';
 import {
     Select,
     SelectContent,
@@ -16,6 +17,7 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { Spinner } from '@/components/ui/spinner';
+import { Textarea } from '@/components/ui/textarea';
 import { useInertiaZodForm } from '@/hooks/use-inertia-zod-form';
 import properties from '@/routes/properties';
 import units from '@/routes/units';
@@ -33,6 +35,7 @@ type UnitFormRow = {
     name: string;
     size: string | null;
     status: string;
+    notes: string | null;
     price_amount: string | null;
     price_billing_period: string | null;
     features: { unit_feature_id: number; quantity: number }[];
@@ -56,7 +59,7 @@ export default function UnitForm({
     statuses,
     billingPeriods,
 }: PageProps) {
-    const { currency } = usePage().props;
+    const { currency, limits } = usePage().props;
     const isEdit = Boolean(unit);
     const [removedPhotoIds, setRemovedPhotoIds] = useState<number[]>([]);
 
@@ -68,6 +71,7 @@ export default function UnitForm({
             size: unit?.size ?? '',
             status: (unit?.status ?? statuses[0]?.value ?? 'vacant') as
                 'vacant' | 'occupied',
+            notes: unit?.notes ?? '',
             price_amount: unit?.price_amount ?? '',
             price_billing_period: (unit?.price_billing_period ??
                 billingPeriods[0]?.value ??
@@ -168,7 +172,10 @@ export default function UnitForm({
             >
                 <div className="grid gap-4 sm:grid-cols-2">
                     <div className="grid gap-1.5">
-                        <Label htmlFor="name">Name</Label>
+                        <Label htmlFor="name">
+                            Name
+                            <RequiredAsterisk />
+                        </Label>
                         <Input
                             id="name"
                             autoFocus
@@ -226,7 +233,10 @@ export default function UnitForm({
                     </div>
 
                     <div className="grid gap-1.5">
-                        <Label htmlFor="status">Status</Label>
+                        <Label htmlFor="status">
+                            Status
+                            <RequiredAsterisk />
+                        </Label>
                         <Select
                             value={data.status}
                             onValueChange={(value) =>
@@ -256,6 +266,7 @@ export default function UnitForm({
                     <div className="grid gap-1.5">
                         <Label htmlFor="price_amount">
                             Price ({currency})
+                            <RequiredAsterisk />
                         </Label>
                         <Input
                             id="price_amount"
@@ -272,6 +283,7 @@ export default function UnitForm({
                     <div className="grid gap-1.5">
                         <Label htmlFor="price_billing_period">
                             Billing period
+                            <RequiredAsterisk />
                         </Label>
                         <Select
                             value={data.price_billing_period}
@@ -350,6 +362,23 @@ export default function UnitForm({
                 </div>
 
                 <div className="mt-5 border-t border-border-soft pt-4">
+                    <Label htmlFor="notes" className="mb-2">
+                        Notes{' '}
+                        <span className="font-normal text-text-tertiary">
+                            (optional)
+                        </span>
+                    </Label>
+                    <Textarea
+                        id="notes"
+                        value={data.notes ?? ''}
+                        onChange={(e) => setField('notes', e.target.value)}
+                        placeholder="Internal notes for admins about this unit…"
+                        maxLength={5000}
+                    />
+                    <InputError message={errors.notes} />
+                </div>
+
+                <div className="mt-5 border-t border-border-soft pt-4">
                     <Label className="mb-3">Photos</Label>
                     <PhotoGalleryInput
                         existing={existingPhotos}
@@ -357,6 +386,7 @@ export default function UnitForm({
                         files={data.photos}
                         onChange={(files) => setField('photos', files)}
                         error={errors.photos}
+                        maxSizeMb={limits.photoMaxMb}
                     />
                 </div>
 

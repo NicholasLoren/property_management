@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Tenants;
 
+use App\Support\UploadLimits;
 use Illuminate\Foundation\Http\FormRequest;
 
 class StoreTenantRequest extends FormRequest
@@ -24,6 +25,7 @@ class StoreTenantRequest extends FormRequest
             'address' => ['nullable', 'string', 'max:255'],
             'notes' => ['nullable', 'string', 'max:5000'],
             'id_document' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:5120'],
+            'avatar' => ['nullable', 'file', 'image', 'mimes:jpg,jpeg,png,webp', 'max:'.UploadLimits::photoMaxKb()],
         ];
     }
 }

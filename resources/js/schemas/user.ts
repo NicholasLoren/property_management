@@ -20,9 +20,12 @@ export const userSchema = z.object({
     status: z.string().optional(),
     landlord_id_number: z.string().max(255).optional().nullable(),
     landlord_address: z.string().max(255).optional().nullable(),
+    landlord_phone: z.string().max(32).optional().nullable(),
     landlord_notes: z.string().max(2000).optional().nullable(),
     landlord_id_document: z.instanceof(File).optional().nullable(),
     landlord_id_document_remove: z.boolean().optional(),
+    avatar: z.instanceof(File).optional().nullable(),
+    avatar_remove: z.boolean().optional(),
 });
 
 export type UserFormValues = z.infer<typeof userSchema>;

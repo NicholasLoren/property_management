@@ -6,6 +6,8 @@ use Spatie\LaravelSettings\Settings;
 
 class GeneralSettings extends Settings
 {
+    public string $app_name;
+
     public string $company_name;
 
     public string $support_email;

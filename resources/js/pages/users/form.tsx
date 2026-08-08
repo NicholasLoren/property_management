@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { FileDropzone } from '@/components/ui/file-dropzone';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { RequiredAsterisk } from '@/components/ui/required-asterisk';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import {
     Select,
@@ -33,8 +34,10 @@ type UserFormRow = {
     status?: string;
     landlord_id_number: string | null;
     landlord_address: string | null;
+    landlord_phone: string | null;
     landlord_notes: string | null;
     landlord_id_document: { name: string; url: string } | null;
+    avatar: { name: string; url: string } | null;
 };
 
 type PageProps = {
@@ -53,6 +56,7 @@ export default function UserForm({
     const { name: appName } = usePage().props;
     const isEdit = Boolean(user);
     const [existingDocRemoved, setExistingDocRemoved] = useState(false);
+    const [existingAvatarRemoved, setExistingAvatarRemoved] = useState(false);
 
     const { data, setField, errors, processing, submit } = useInertiaZodForm(
         userSchema,
@@ -63,9 +67,12 @@ export default function UserForm({
             status: user?.status ?? statuses[0]?.value,
             landlord_id_number: user?.landlord_id_number ?? '',
             landlord_address: user?.landlord_address ?? '',
+            landlord_phone: user?.landlord_phone ?? '',
             landlord_notes: user?.landlord_notes ?? '',
             landlord_id_document: null,
             landlord_id_document_remove: false,
+            avatar: null,
+            avatar_remove: false,
         },
     );
 
@@ -82,6 +89,7 @@ export default function UserForm({
     const showLandlordSection = data.role === LANDLORD_ROLE;
     const existingDocument =
         !existingDocRemoved && user ? user.landlord_id_document : null;
+    const existingAvatar = !existingAvatarRemoved && user ? user.avatar : null;
 
     return (
         <>
@@ -115,9 +123,32 @@ export default function UserForm({
                 noValidate
                 className="w-full rounded-[14px] border border-border-soft bg-card p-5 shadow-sm"
             >
+                <div className="mb-5 border-b border-border-soft pb-4">
+                    <Label className="mb-3">
+                        Avatar{' '}
+                        <span className="font-normal text-text-tertiary">
+                            (optional)
+                        </span>
+                    </Label>
+                    <FileDropzone
+                        accept="image/jpeg,image/png,image/webp"
+                        value={data.avatar ?? null}
+                        onChange={(file) => setField('avatar', file)}
+                        existing={existingAvatar}
+                        onRemoveExisting={() => {
+                            setExistingAvatarRemoved(true);
+                            setField('avatar_remove', true);
+                        }}
+                        error={errors.avatar}
+                    />
+                </div>
+
                 <div className="grid gap-4 sm:grid-cols-2">
                     <div className="grid gap-1.5">
-                        <Label htmlFor="name">Name</Label>
+                        <Label htmlFor="name">
+                            Name
+                            <RequiredAsterisk />
+                        </Label>
                         <Input
                             id="name"
                             autoFocus
@@ -129,7 +160,10 @@ export default function UserForm({
                     </div>
 
                     <div className="grid gap-1.5">
-                        <Label htmlFor="email">Email</Label>
+                        <Label htmlFor="email">
+                            Email
+                            <RequiredAsterisk />
+                        </Label>
                         <Input
                             id="email"
                             type="email"
@@ -141,7 +175,10 @@ export default function UserForm({
                     </div>
 
                     <div className="grid gap-1.5">
-                        <Label htmlFor="role">Role</Label>
+                        <Label htmlFor="role">
+                            Role
+                            <RequiredAsterisk />
+                        </Label>
                         <SearchableSelect
                             id="role"
                             value={data.role}
@@ -223,6 +260,27 @@ export default function UserForm({
                                     placeholder="Physical address"
                                 />
                                 <InputError message={errors.landlord_address} />
+                            </div>
+
+                            <div className="grid gap-1.5">
+                                <Label htmlFor="landlord_phone">
+                                    Phone{' '}
+                                    <span className="font-normal text-text-tertiary">
+                                        (for SMS rent reminders)
+                                    </span>
+                                </Label>
+                                <Input
+                                    id="landlord_phone"
+                                    value={data.landlord_phone ?? ''}
+                                    onChange={(e) =>
+                                        setField(
+                                            'landlord_phone',
+                                            e.target.value,
+                                        )
+                                    }
+                                    placeholder="e.g. +256700000000"
+                                />
+                                <InputError message={errors.landlord_phone} />
                             </div>
 
                             <div className="grid gap-1.5 sm:col-span-2">

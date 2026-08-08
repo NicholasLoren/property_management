@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { RequiredAsterisk } from '@/components/ui/required-asterisk';
 import { Spinner } from '@/components/ui/spinner';
 import { Textarea } from '@/components/ui/textarea';
 import { useInertiaZodForm } from '@/hooks/use-inertia-zod-form';
@@ -103,7 +104,10 @@ export default function RoleForm({ role, permissionCategories }: PageProps) {
             >
                 <div className="grid gap-4">
                     <div className="grid gap-1.5">
-                        <Label htmlFor="name">Name</Label>
+                        <Label htmlFor="name">
+                            Name
+                            <RequiredAsterisk />
+                        </Label>
                         <Input
                             id="name"
                             autoFocus={!isSystem}

@@ -1,4 +1,4 @@
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, usePage } from '@inertiajs/react';
 import type { FormEvent } from 'react';
 import { useState } from 'react';
 import { Breadcrumbs } from '@/components/breadcrumbs';
@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PhotoGalleryInput } from '@/components/ui/photo-gallery-input';
+import { RequiredAsterisk } from '@/components/ui/required-asterisk';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import {
     Select,
@@ -55,6 +56,7 @@ export default function MaintenanceForm({
     statuses,
     priorities,
 }: PageProps) {
+    const { limits } = usePage().props;
     const isEdit = Boolean(maintenanceRequest);
     const [removedPhotoIds, setRemovedPhotoIds] = useState<number[]>([]);
 
@@ -97,7 +99,13 @@ export default function MaintenanceForm({
 
     return (
         <>
-            <Head title={isEdit ? 'Edit maintenance request' : 'Add maintenance request'} />
+            <Head
+                title={
+                    isEdit
+                        ? 'Edit maintenance request'
+                        : 'Add maintenance request'
+                }
+            />
 
             <div className="mb-3">
                 <Breadcrumbs
@@ -115,7 +123,9 @@ export default function MaintenanceForm({
 
             <div className="mb-[22px]">
                 <h1 className="text-[21px] font-extrabold tracking-tight">
-                    {isEdit ? 'Edit maintenance request' : 'Add maintenance request'}
+                    {isEdit
+                        ? 'Edit maintenance request'
+                        : 'Add maintenance request'}
                 </h1>
                 <p className="mt-1 text-[13px] text-text-secondary">
                     {isEdit
@@ -131,11 +141,16 @@ export default function MaintenanceForm({
             >
                 <div className="grid gap-4 sm:grid-cols-2">
                     <div className="grid gap-1.5">
-                        <Label htmlFor="unit_id">Unit</Label>
+                        <Label htmlFor="unit_id">
+                            Unit
+                            <RequiredAsterisk />
+                        </Label>
                         <SearchableSelect
                             id="unit_id"
                             value={data.unit_id || null}
-                            onChange={(value) => setField('unit_id', value ?? '')}
+                            onChange={(value) =>
+                                setField('unit_id', value ?? '')
+                            }
                             options={units}
                             placeholder="Select a unit…"
                             searchPlaceholder="Search units…"
@@ -144,7 +159,10 @@ export default function MaintenanceForm({
                     </div>
 
                     <div className="grid gap-1.5">
-                        <Label htmlFor="title">Title</Label>
+                        <Label htmlFor="title">
+                            Title
+                            <RequiredAsterisk />
+                        </Label>
                         <Input
                             id="title"
                             autoFocus
@@ -156,11 +174,17 @@ export default function MaintenanceForm({
                     </div>
 
                     <div className="grid gap-1.5">
-                        <Label htmlFor="priority">Priority</Label>
+                        <Label htmlFor="priority">
+                            Priority
+                            <RequiredAsterisk />
+                        </Label>
                         <Select
                             value={data.priority}
                             onValueChange={(value) =>
-                                setField('priority', value as typeof data.priority)
+                                setField(
+                                    'priority',
+                                    value as typeof data.priority,
+                                )
                             }
                         >
                             <SelectTrigger id="priority" className="w-full">
@@ -168,7 +192,10 @@ export default function MaintenanceForm({
                             </SelectTrigger>
                             <SelectContent>
                                 {priorities.map((priority) => (
-                                    <SelectItem key={priority.value} value={priority.value}>
+                                    <SelectItem
+                                        key={priority.value}
+                                        value={priority.value}
+                                    >
                                         {priority.label}
                                     </SelectItem>
                                 ))}
@@ -178,7 +205,10 @@ export default function MaintenanceForm({
                     </div>
 
                     <div className="grid gap-1.5">
-                        <Label htmlFor="status">Status</Label>
+                        <Label htmlFor="status">
+                            Status
+                            <RequiredAsterisk />
+                        </Label>
                         <Select
                             value={data.status}
                             onValueChange={(value) =>
@@ -190,7 +220,10 @@ export default function MaintenanceForm({
                             </SelectTrigger>
                             <SelectContent>
                                 {statuses.map((status) => (
-                                    <SelectItem key={status.value} value={status.value}>
+                                    <SelectItem
+                                        key={status.value}
+                                        value={status.value}
+                                    >
                                         {status.label}
                                     </SelectItem>
                                 ))}
@@ -209,7 +242,9 @@ export default function MaintenanceForm({
                         <SearchableSelect
                             id="assigned_to"
                             value={data.assigned_to || null}
-                            onChange={(value) => setField('assigned_to', value ?? '')}
+                            onChange={(value) =>
+                                setField('assigned_to', value ?? '')
+                            }
                             options={assignees}
                             placeholder="Unassigned"
                             searchPlaceholder="Search people…"
@@ -245,7 +280,9 @@ export default function MaintenanceForm({
                             id="scheduled_date"
                             type="date"
                             value={data.scheduled_date ?? ''}
-                            onChange={(e) => setField('scheduled_date', e.target.value)}
+                            onChange={(e) =>
+                                setField('scheduled_date', e.target.value)
+                            }
                         />
                         <InputError message={errors.scheduled_date} />
                     </div>
@@ -261,13 +298,15 @@ export default function MaintenanceForm({
                             id="completed_at"
                             type="date"
                             value={data.completed_at ?? ''}
-                            onChange={(e) => setField('completed_at', e.target.value)}
+                            onChange={(e) =>
+                                setField('completed_at', e.target.value)
+                            }
                         />
                         <InputError message={errors.completed_at} />
                         {data.status === 'completed' && data.cost && (
                             <p className="text-xs text-text-tertiary">
-                                Marking this Completed with a cost records a matching
-                                expense automatically.
+                                Marking this Completed with a cost records a
+                                matching expense automatically.
                             </p>
                         )}
                     </div>
@@ -283,7 +322,9 @@ export default function MaintenanceForm({
                     <Textarea
                         id="description"
                         value={data.description ?? ''}
-                        onChange={(e) => setField('description', e.target.value)}
+                        onChange={(e) =>
+                            setField('description', e.target.value)
+                        }
                         placeholder="What's wrong, and where"
                         maxLength={5000}
                     />
@@ -315,6 +356,7 @@ export default function MaintenanceForm({
                         files={data.photos}
                         onChange={(files) => setField('photos', files)}
                         error={errors.photos}
+                        maxSizeMb={limits.photoMaxMb}
                     />
                 </div>
 

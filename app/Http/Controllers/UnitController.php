@@ -3,10 +3,16 @@
 namespace App\Http\Controllers;
 
 use App\Enums\BillingPeriod;
+use App\Enums\LeaseStatus;
+use App\Enums\PaymentStatus;
 use App\Enums\UnitStatus;
 use App\Http\Requests\Units\StoreUnitRequest;
 use App\Http\Requests\Units\UpdateUnitRequest;
+use App\Models\Lease;
+use App\Models\MaintenanceRequest;
+use App\Models\Payment;
 use App\Models\Property;
+use App\Models\Tenant;
 use App\Models\Unit;
 use App\Models\UnitFeature;
 use App\Models\UnitPrice;
@@ -214,6 +220,7 @@ class UnitController extends Controller
             'name' => $request->validated('name'),
             'size' => $request->validated('size'),
             'status' => $request->validated('status'),
+            'notes' => $request->validated('notes'),
         ]);
 
         if ($this->codes->usesId('unit')) {
@@ -245,7 +252,16 @@ class UnitController extends Controller
 
     public function show(Property $property, Unit $unit): Response
     {
-        $unit->load(['unitType', 'features', 'media', 'prices' => fn ($query) => $query->orderByDesc('effective_from')]);
+        $unit->load([
+            'unitType',
+            'features',
+            'media',
+            'prices' => fn ($query) => $query->orderByDesc('effective_from'),
+            'leases' => fn ($query) => $query->orderByDesc('start_date'),
+            'leases.tenants',
+            'leases.payments' => fn ($query) => $query->orderByDesc('payment_date'),
+            'maintenanceRequests' => fn ($query) => $query->orderByDesc('created_at'),
+        ]);
 
         return Inertia::render('units/show', [
             'property' => ['id' => $property->id, 'name' => $property->name],
@@ -260,6 +276,7 @@ class UnitController extends Controller
             'name' => $request->validated('name'),
             'size' => $request->validated('size'),
             'status' => $request->validated('status'),
+            'notes' => $request->validated('notes'),
         ]);
 
         $this->syncFeatures($request, $unit);
@@ -408,6 +425,7 @@ class UnitController extends Controller
             'name' => $unit->name,
             'size' => $unit->size,
             'status' => $unit->status->value,
+            'notes' => $unit->notes,
             'price_amount' => $currentPrice?->amount !== null ? (string) $currentPrice->amount : null,
             'price_billing_period' => $currentPrice?->billing_period->value,
             'features' => $unit->features->map(fn (UnitFeature $feature): array => [
@@ -427,6 +445,24 @@ class UnitController extends Controller
      */
     private function transformForShow(Unit $unit): array
     {
+        $activeLease = $unit->leases->firstWhere('status', LeaseStatus::Active);
+        $currentTenants = $activeLease?->tenants ?? collect();
+        $currentTenantIds = $currentTenants->pluck('id');
+
+        $pastTenants = $unit->leases
+            ->where('status', '!=', LeaseStatus::Active)
+            ->flatMap(fn (Lease $lease) => $lease->tenants)
+            ->reject(fn (Tenant $tenant) => $currentTenantIds->contains($tenant->id))
+            ->unique('id')
+            ->values();
+
+        $allPayments = $unit->leases
+            ->flatMap(fn (Lease $lease) => $lease->payments)
+            ->sortByDesc('payment_date')
+            ->values();
+
+        $completedPayments = $allPayments->where('status', PaymentStatus::Completed);
+
         return [
             'id' => $unit->id,
             'code' => $unit->code,
@@ -435,6 +471,7 @@ class UnitController extends Controller
             'size' => $unit->size,
             'status' => $unit->status->value,
             'status_label' => $unit->status->label(),
+            'notes' => $unit->notes,
             'features' => $unit->features->map(fn (UnitFeature $feature): array => [
                 'name' => $feature->name,
                 'quantity' => $feature->pivot->quantity,
@@ -452,6 +489,56 @@ class UnitController extends Controller
                 'name' => $media->file_name,
                 'url' => $media->getUrl(),
             ])->all(),
+            'current_tenants' => $currentTenants->map(fn (Tenant $tenant): array => [
+                'id' => $tenant->id,
+                'name' => $tenant->name,
+                'email' => $tenant->email,
+                'phone' => $tenant->phone,
+            ])->values()->all(),
+            'past_tenants' => $pastTenants->map(fn (Tenant $tenant): array => [
+                'id' => $tenant->id,
+                'name' => $tenant->name,
+                'email' => $tenant->email,
+                'phone' => $tenant->phone,
+            ])->all(),
+            'leases' => $unit->leases->map(fn (Lease $lease): array => [
+                'id' => $lease->id,
+                'status' => $lease->status->value,
+                'status_label' => $lease->status->label(),
+                'start_date' => $lease->start_date->toDateString(),
+                'end_date' => $lease->end_date->toDateString(),
+                'rent_amount' => (string) $lease->rent_amount,
+                'billing_period_label' => $lease->billing_period->label(),
+                'tenant_names' => $lease->tenants->pluck('name')->all(),
+            ])->all(),
+            'payment_history' => $allPayments->map(fn (Payment $payment): array => [
+                'id' => $payment->id,
+                'amount' => (string) $payment->amount,
+                'payment_date' => $payment->payment_date->toDateString(),
+                'method_label' => $payment->method->label(),
+                'status' => $payment->status->value,
+                'status_label' => $payment->status->label(),
+            ])->all(),
+            'maintenance_history' => $unit->maintenanceRequests->map(fn (MaintenanceRequest $request): array => [
+                'id' => $request->id,
+                'title' => $request->title,
+                'status' => $request->status->value,
+                'status_label' => $request->status->label(),
+                'priority_label' => $request->priority->label(),
+                'cost' => $request->cost !== null ? (string) $request->cost : null,
+                'scheduled_date' => $request->scheduled_date?->toDateString(),
+                'completed_at' => $request->completed_at?->toIso8601String(),
+            ])->all(),
+            'performance' => [
+                'total_collected' => (string) $completedPayments->sum('amount'),
+                'payments_count' => $completedPayments->count(),
+                'leases_count' => $unit->leases->count(),
+                'avg_rent' => $unit->leases->isNotEmpty()
+                    ? (string) round((float) $unit->leases->avg('rent_amount'), 2)
+                    : null,
+                'maintenance_count' => $unit->maintenanceRequests->count(),
+                'maintenance_total_cost' => (string) $unit->maintenanceRequests->sum('cost'),
+            ],
             'created_at' => $unit->created_at?->toIso8601String(),
         ];
     }
