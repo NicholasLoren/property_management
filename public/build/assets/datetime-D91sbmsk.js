@@ -1,0 +1,1 @@
+function e(e,t,n=`–`){return e?new Date(e).toLocaleDateString(void 0,{dateStyle:`medium`,timeZone:t}):n}function t(e,t,n=`–`){return e?new Date(e).toLocaleString(void 0,{dateStyle:`medium`,timeStyle:`short`,timeZone:t}):n}export{t as n,e as t};
