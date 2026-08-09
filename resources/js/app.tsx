@@ -6,7 +6,10 @@ import AppLayout from '@/layouts/app-layout';
 import AuthLayout from '@/layouts/auth-layout';
 import SettingsLayout from '@/layouts/settings/layout';
 
-const appName = window.__APP_NAME__ || import.meta.env.VITE_APP_NAME || 'Laravel';
+const appName =
+    (typeof window !== 'undefined' ? window.__APP_NAME__ : undefined) ||
+    import.meta.env.VITE_APP_NAME ||
+    'Laravel';
 
 createInertiaApp({
     title: (title) => (title ? `${title} - ${appName}` : appName),
