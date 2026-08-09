@@ -4,7 +4,7 @@ import {
     useReactTable,
 } from '@tanstack/react-table';
 import type { ColumnDef } from '@tanstack/react-table';
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import { ChevronDown, ChevronUp, RefreshCw } from 'lucide-react';
 import type { ReactNode } from 'react';
 import type { EmptyStateConfig } from '@/components/data-table/data-table-empty-state';
 import { DataTableEmptyState } from '@/components/data-table/data-table-empty-state';
@@ -12,6 +12,7 @@ import { DataTableExportMenu } from '@/components/data-table/data-table-export-m
 import type { DataTablePaginationMeta } from '@/components/data-table/data-table-pagination';
 import { DataTablePagination } from '@/components/data-table/data-table-pagination';
 import { DataTableViewOptions } from '@/components/data-table/data-table-view-options';
+import { Button } from '@/components/ui/button';
 import {
     Table,
     TableBody,
@@ -40,6 +41,9 @@ type DataTableProps<TData> = {
     toolbar?: ReactNode;
     /** When set, clicking anywhere on a row (outside interactive cells) opens it. */
     onRowClick?: (row: TData) => void;
+    /** When set, shows a refresh button that re-triggers the current data fetch. */
+    onRefresh?: () => void;
+    isRefreshing?: boolean;
 };
 
 export function DataTable<TData>({
@@ -56,6 +60,8 @@ export function DataTable<TData>({
     emptyState,
     toolbar,
     onRowClick,
+    onRefresh,
+    isRefreshing,
 }: DataTableProps<TData>) {
     const [columnVisibility, setColumnVisibility] =
         useColumnVisibility(tableId);
@@ -82,6 +88,23 @@ export function DataTable<TData>({
             <div className="mb-3 flex flex-wrap items-center gap-2.5">
                 {toolbar}
                 <div className="flex-1" />
+                {onRefresh && (
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={onRefresh}
+                        disabled={isRefreshing}
+                        title="Refresh"
+                    >
+                        <RefreshCw
+                            className={cn(
+                                'size-[15px]',
+                                isRefreshing && 'animate-spin',
+                            )}
+                        />
+                        Refresh
+                    </Button>
+                )}
                 <DataTableViewOptions table={table} />
                 {getExportUrl && (
                     <DataTableExportMenu getExportUrl={getExportUrl} />

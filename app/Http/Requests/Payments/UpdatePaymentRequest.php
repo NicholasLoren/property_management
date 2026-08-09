@@ -36,7 +36,7 @@ class UpdatePaymentRequest extends FormRequest
                 },
             ],
             'payment_schedule_id' => [
-                'nullable',
+                'required',
                 Rule::exists('payment_schedules', 'id'),
                 function (string $attribute, mixed $value, Closure $fail): void {
                     $payment = $this->route('payment');

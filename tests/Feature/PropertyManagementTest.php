@@ -14,6 +14,7 @@ use Database\Seeders\PermissionSeeder;
 use Database\Seeders\RoleSeeder;
 use Database\Seeders\UnitFeatureSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Inertia\Inertia;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
@@ -227,6 +228,44 @@ class PropertyManagementTest extends TestCase
                 ->where('property.price_summary.median', '400000')
                 ->where('property.price_summary.billing_period_label', 'Monthly')
             );
+    }
+
+    public function test_property_show_units_table_is_deferred_and_paginated(): void
+    {
+        $admin = $this->admin();
+        $property = Property::factory()->create([
+            'landlord_id' => $this->landlord()->id,
+            'type' => PropertyType::MultiUnit,
+        ]);
+        Unit::factory()->for($property)->create(['name' => 'Unit A']);
+        Unit::factory()->for($property)->create(['name' => 'Unit B']);
+
+        // A normal (non-partial) page load must not evaluate the deferred table.
+        $this->actingAs($admin)
+            ->get(route('properties.show', $property))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('properties/show')
+                ->where('unitsFilters.tab', 'units')
+                ->missing('unitsTable')
+            );
+
+        // A partial reload explicitly requesting the table gets it, paginated and sorted.
+        // (Partial reloads return raw JSON rather than a rendered view, so they're
+        // asserted directly rather than through assertInertia().)
+        $this->actingAs($admin)
+            ->withHeaders([
+                'X-Inertia' => 'true',
+                'X-Inertia-Version' => Inertia::getVersion(),
+                'X-Inertia-Partial-Component' => 'properties/show',
+                'X-Inertia-Partial-Data' => 'unitsTable,unitsFilters',
+            ])
+            ->get(route('properties.show', ['property' => $property, 'sort' => 'name', 'dir' => 'desc']))
+            ->assertOk()
+            ->assertJsonPath('component', 'properties/show')
+            ->assertJsonCount(2, 'props.unitsTable.data')
+            ->assertJsonPath('props.unitsTable.data.0.name', 'Unit B')
+            ->assertJsonPath('props.unitsTable.meta.total', 2);
     }
 
     public function test_property_index_shows_units_summary_and_price_range(): void

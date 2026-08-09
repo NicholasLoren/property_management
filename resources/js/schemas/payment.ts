@@ -3,9 +3,8 @@ import { z } from 'zod';
 /**
  * Mirrors app/Http/Requests/Payments/{Store,Update}PaymentRequest.php.
  */
-export const paymentSchema = z.object({
+const paymentBaseFields = {
     lease_id: z.string().trim().min(1, 'Lease is required.'),
-    payment_schedule_id: z.string().optional().nullable(),
     tenant_id: z.string().optional().nullable(),
     amount: z
         .string()
@@ -28,6 +27,21 @@ export const paymentSchema = z.object({
     notes: z.string().max(5000).optional().nullable(),
     receipt: z.instanceof(File).optional().nullable(),
     receipt_remove: z.boolean().optional(),
+};
+
+/** Recording a new payment can settle several rent periods at once. */
+export const paymentCreateSchema = z.object({
+    ...paymentBaseFields,
+    payment_schedule_ids: z
+        .array(z.string())
+        .min(1, 'Select at least one rent period.'),
 });
 
-export type PaymentFormValues = z.infer<typeof paymentSchema>;
+/** Editing an existing payment still ties it to exactly one period. */
+export const paymentEditSchema = z.object({
+    ...paymentBaseFields,
+    payment_schedule_id: z.string().trim().min(1, 'Select a rent period.'),
+});
+
+export type PaymentCreateFormValues = z.infer<typeof paymentCreateSchema>;
+export type PaymentEditFormValues = z.infer<typeof paymentEditSchema>;

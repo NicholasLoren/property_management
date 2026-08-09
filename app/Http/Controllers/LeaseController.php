@@ -4,11 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Enums\BillingPeriod;
 use App\Enums\LeaseStatus;
+use App\Enums\PaymentScheduleStatus;
 use App\Enums\PaymentStatus;
 use App\Http\Requests\Leases\StoreLeaseRequest;
 use App\Http\Requests\Leases\UpdateLeaseRequest;
 use App\Models\Lease;
 use App\Models\Payment;
+use App\Models\PaymentSchedule;
 use App\Models\Tenant;
 use App\Models\Unit;
 use Illuminate\Database\Eloquent\Builder;
@@ -175,7 +177,7 @@ class LeaseController extends Controller
         return to_route('leases.index');
     }
 
-    public function show(Lease $lease): Response
+    public function show(Request $request, Lease $lease): Response
     {
         $lease->load([
             'unit.property',
@@ -184,8 +186,32 @@ class LeaseController extends Controller
             'payments' => fn ($query) => $query->orderByDesc('payment_date'),
         ]);
 
+        $tab = $request->string('tab', 'payments')->value();
+        $tab = in_array($tab, ['payments', 'schedule'], true) ? $tab : 'payments';
+
+        $sort = $request->string('sort', 'period_start')->value();
+        $dir = $request->string('dir', 'asc')->value() === 'desc' ? 'desc' : 'asc';
+        $perPage = (int) $request->integer('per_page', 10);
+        $perPage = in_array($perPage, [10, 25, 50], true) ? $perPage : 10;
+        $page = max(1, (int) $request->integer('page', 1));
+
+        $fetchScheduleTable = fn () => $this->paginatedScheduleTable($lease, $sort, $dir, $perPage, $page);
+
         return Inertia::render('leases/show', [
             'lease' => $this->transformForShow($lease),
+            'scheduleFilters' => [
+                'tab' => $tab,
+                'sort' => $sort,
+                'dir' => $dir,
+                'per_page' => $perPage,
+                'page' => $page,
+            ],
+            // Deferred (auto-fetched right after mount) when the Payment Schedule
+            // tab is the one shown on this request; otherwise left optional until
+            // the frontend explicitly requests it by switching to that tab.
+            'scheduleTable' => $tab === 'schedule'
+                ? Inertia::defer($fetchScheduleTable)
+                : Inertia::optional($fetchScheduleTable),
         ]);
     }
 
@@ -328,6 +354,50 @@ class LeaseController extends Controller
                 'payments_count' => $completedPayments->count(),
             ],
             'created_at' => $lease->created_at?->toIso8601String(),
+        ];
+    }
+
+    /**
+     * @param  'asc'|'desc'  $dir
+     * @return array{data: array<int, array<string, mixed>>, meta: array<string, mixed>}
+     */
+    private function paginatedScheduleTable(Lease $lease, string $sort, string $dir, int $perPage, int $page): array
+    {
+        $query = $lease->paymentSchedules()->withSum(
+            ['payments as paid_amount' => fn (Builder $q) => $q->where('status', PaymentStatus::Completed)],
+            'amount',
+        );
+
+        $sortColumn = match ($sort) {
+            'status' => 'status',
+            'amount_expected' => 'amount_expected',
+            default => 'period_start',
+        };
+        $query->orderBy($sortColumn, $dir)->orderBy('id', $dir);
+
+        $paginator = $query->paginate($perPage, page: $page);
+        $today = now()->startOfDay();
+
+        return [
+            'data' => $paginator->getCollection()->map(fn (PaymentSchedule $schedule): array => [
+                'id' => $schedule->id,
+                'period_start' => $schedule->period_start->toDateString(),
+                'period_end' => $schedule->period_end->toDateString(),
+                'amount_expected' => (string) $schedule->amount_expected,
+                'amount_paid' => number_format((float) ($schedule->paid_amount ?? 0), 2, '.', ''),
+                'status' => $schedule->status->value,
+                'status_label' => $schedule->status->label(),
+                'is_overdue' => in_array($schedule->status, [PaymentScheduleStatus::Pending, PaymentScheduleStatus::Partial], true)
+                    && $schedule->period_start->lessThan($today),
+            ])->all(),
+            'meta' => [
+                'current_page' => $paginator->currentPage(),
+                'last_page' => $paginator->lastPage(),
+                'per_page' => $paginator->perPage(),
+                'total' => $paginator->total(),
+                'from' => $paginator->firstItem(),
+                'to' => $paginator->lastItem(),
+            ],
         ];
     }
 

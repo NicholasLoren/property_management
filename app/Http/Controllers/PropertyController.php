@@ -221,7 +221,7 @@ class PropertyController extends Controller
         return to_route('properties.index');
     }
 
-    public function show(Property $property): Response
+    public function show(Request $request, Property $property): Response
     {
         $property->load([
             'landlord.landlordDetail',
@@ -229,11 +229,36 @@ class PropertyController extends Controller
             'media',
             'units.currentPrice',
             'units.features',
-            'units.unitType',
         ]);
+
+        $tab = $request->string('tab', 'units')->value();
+        $tab = in_array($tab, ['units', 'landlord', 'performance'], true) ? $tab : 'units';
+
+        $sort = $request->string('sort', 'name')->value();
+        $dir = $request->string('dir', 'asc')->value() === 'desc' ? 'desc' : 'asc';
+        $perPage = (int) $request->integer('per_page', 10);
+        $perPage = in_array($perPage, [10, 25, 50], true) ? $perPage : 10;
+        $page = max(1, (int) $request->integer('page', 1));
+        $search = $request->string('search')->trim()->value();
+
+        $fetchUnitsTable = fn () => $this->paginatedUnitsTable($property, $search, $sort, $dir, $perPage, $page);
 
         return Inertia::render('properties/show', [
             'property' => $this->transformForShow($property),
+            'unitsFilters' => [
+                'tab' => $tab,
+                'search' => $search,
+                'sort' => $sort,
+                'dir' => $dir,
+                'per_page' => $perPage,
+                'page' => $page,
+            ],
+            // Deferred (auto-fetched right after mount) when the Units tab is the
+            // one shown on this request; otherwise left optional until the
+            // frontend explicitly requests it by switching to that tab.
+            'unitsTable' => $tab === 'units'
+                ? Inertia::defer($fetchUnitsTable)
+                : Inertia::optional($fetchUnitsTable),
         ]);
     }
 
@@ -377,18 +402,6 @@ class PropertyController extends Controller
                 'name' => $media->file_name,
                 'url' => $media->getUrl(),
             ])->all(),
-            'units_count' => $units->count(),
-            'units' => $units->map(fn (Unit $unit): array => [
-                'id' => $unit->id,
-                'name' => $unit->name,
-                'unit_type_label' => $unit->unitType?->label,
-                'status' => $unit->status->value,
-                'status_label' => $unit->status->label(),
-                'current_price' => $unit->currentPrice !== null ? [
-                    'amount' => (string) $unit->currentPrice->amount,
-                    'billing_period_label' => $unit->currentPrice->billing_period->label(),
-                ] : null,
-            ])->all(),
             'quick_facts' => [
                 ...$unitsSummary,
                 'bedrooms' => $this->featureTotal($units, 'Bedroom'),
@@ -404,6 +417,52 @@ class PropertyController extends Controller
                     : null,
             ],
             'created_at' => $property->created_at?->toIso8601String(),
+        ];
+    }
+
+    /**
+     * @param  'asc'|'desc'  $dir
+     * @return array{data: array<int, array<string, mixed>>, meta: array<string, mixed>}
+     */
+    private function paginatedUnitsTable(Property $property, string $search, string $sort, string $dir, int $perPage, int $page): array
+    {
+        $query = $property->units()->with(['unitType', 'currentPrice'])->withCount('features');
+
+        if ($search !== '') {
+            $query->where(fn (Builder $q) => $q->where('name', 'like', "%{$search}%")
+                ->orWhere('code', 'like', "%{$search}%"));
+        }
+
+        $sortColumn = $sort === 'status' ? 'status' : 'name';
+        $query->orderBy($sortColumn, $dir)->orderBy('id');
+
+        $paginator = $query->paginate($perPage, page: $page);
+
+        return [
+            'data' => $paginator->getCollection()->map(fn (Unit $unit): array => [
+                'id' => $unit->id,
+                'code' => $unit->code,
+                'name' => $unit->name,
+                'unit_type_label' => $unit->unitType?->label,
+                'size' => $unit->size,
+                'status' => $unit->status->value,
+                'status_label' => $unit->status->label(),
+                'current_price' => $unit->currentPrice !== null ? [
+                    'amount' => (string) $unit->currentPrice->amount,
+                    'billing_period_label' => $unit->currentPrice->billing_period->label(),
+                ] : null,
+                'features_count' => $unit->features_count,
+                'photo_url' => $unit->getFirstMediaUrl('photos') ?: null,
+                'created_at' => $unit->created_at?->toIso8601String(),
+            ])->all(),
+            'meta' => [
+                'current_page' => $paginator->currentPage(),
+                'last_page' => $paginator->lastPage(),
+                'per_page' => $paginator->perPage(),
+                'total' => $paginator->total(),
+                'from' => $paginator->firstItem(),
+                'to' => $paginator->lastItem(),
+            ],
         ];
     }
 

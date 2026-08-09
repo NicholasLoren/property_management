@@ -47,7 +47,7 @@ class PaymentScheduleGeneratorTest extends TestCase
         $this->assertTrue($schedule->every(fn ($row) => $row->status === PaymentScheduleStatus::Pending));
     }
 
-    public function test_prorates_a_stub_period_when_billing_day_differs_from_move_in_day(): void
+    public function test_skips_billing_for_days_before_the_first_billing_date_when_it_differs_from_move_in_day(): void
     {
         Carbon::setTestNow('2026-09-15');
 
@@ -62,17 +62,13 @@ class PaymentScheduleGeneratorTest extends TestCase
         ]);
 
         $schedule = $lease->paymentSchedules()->orderBy('period_start')->get();
-        $stub = $schedule->first();
+        $first = $schedule->first();
 
-        $this->assertSame('2026-09-12', $stub->period_start->toDateString());
-        $this->assertSame('2026-09-30', $stub->period_end->toDateString());
-        // 19 days (12th through 30th) at a 30-day daily rate of 10,000.
-        $this->assertSame('190000.00', $stub->amount_expected);
-
-        $second = $schedule->get(1);
-        $this->assertSame('2026-10-01', $second->period_start->toDateString());
-        $this->assertSame('2026-10-31', $second->period_end->toDateString());
-        $this->assertSame('300000.00', $second->amount_expected);
+        // No schedule row for Sep 12–30 — the first period starts at the
+        // first full billing date instead of being prorated from move-in.
+        $this->assertSame('2026-10-01', $first->period_start->toDateString());
+        $this->assertSame('2026-10-31', $first->period_end->toDateString());
+        $this->assertSame('300000.00', $first->amount_expected);
     }
 
     public function test_custom_interval_periods_span_the_configured_number_of_months(): void

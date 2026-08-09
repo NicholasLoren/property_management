@@ -107,20 +107,59 @@ class PaymentController extends Controller
 
     public function store(StorePaymentRequest $request): RedirectResponse
     {
-        $payment = Payment::create([
+        /** @var array<int, string> $scheduleIds */
+        $scheduleIds = $request->validated('payment_schedule_ids');
+        $schedules = PaymentSchedule::query()->whereIn('id', $scheduleIds)->orderBy('period_start')->get();
+
+        $baseAttributes = [
             'lease_id' => $request->validated('lease_id'),
-            'payment_schedule_id' => $request->validated('payment_schedule_id'),
             'tenant_id' => $request->validated('tenant_id'),
-            'amount' => $request->validated('amount'),
             'payment_date' => $request->validated('payment_date'),
             'method' => $request->validated('method'),
             'status' => $request->validated('status'),
             'reference' => $request->validated('reference'),
             'notes' => $request->validated('notes'),
             'created_by' => $request->user()->id,
-        ]);
+        ];
 
-        $this->syncReceipt($request, $payment);
+        // A single selected period keeps today's behaviour: the amount
+        // typed in is trusted as-is, which is how a deliberate partial
+        // payment against that one period gets recorded. Selecting several
+        // periods at once means "settle these in full" — the amount field
+        // is a computed display in that case, so each created payment is
+        // for that period's own exact remaining balance instead.
+        if ($schedules->count() === 1) {
+            $payment = Payment::create([
+                ...$baseAttributes,
+                'payment_schedule_id' => $schedules->first()->id,
+                'amount' => $request->validated('amount'),
+            ]);
+
+            $this->syncReceipt($request, $payment);
+        } else {
+            $receiptMedia = null;
+
+            foreach ($schedules as $schedule) {
+                $paid = (float) $schedule->payments()->where('status', PaymentStatus::Completed)->sum('amount');
+                $balance = round((float) $schedule->amount_expected - $paid, 2);
+
+                $payment = Payment::create([
+                    ...$baseAttributes,
+                    'payment_schedule_id' => $schedule->id,
+                    'amount' => $balance,
+                ]);
+
+                // The upload only survives being read once (addMediaFromRequest
+                // moves the temp file on first use), so every payment after the
+                // first gets the same receipt via a media copy instead.
+                if ($receiptMedia === null) {
+                    $this->syncReceipt($request, $payment);
+                    $receiptMedia = $payment->getFirstMedia('receipt');
+                } else {
+                    $receiptMedia->copy($payment, 'receipt');
+                }
+            }
+        }
 
         Inertia::flash('toast', ['type' => 'success', 'message' => 'Payment was recorded.']);
 
@@ -272,7 +311,7 @@ class PaymentController extends Controller
     }
 
     /**
-     * @return array<int, array{value: string, label: string, tenants: array<int, array{value: string, label: string}>, schedule_periods: array<int, array{value: string, label: string}>}>
+     * @return array<int, array{value: string, label: string, tenants: array<int, array{value: string, label: string}>, schedule_periods: array<int, array{value: string, label: string, balance: string}>}>
      */
     private function leaseOptions(string $currency): array
     {
@@ -280,6 +319,10 @@ class PaymentController extends Controller
             ->with(['unit.property', 'tenants'])
             ->with('paymentSchedules', function (Relation $query): void {
                 $query->whereIn('status', [PaymentScheduleStatus::Pending->value, PaymentScheduleStatus::Partial->value])
+                    ->withSum(
+                        ['payments as paid_amount' => fn (Builder $q) => $q->where('status', PaymentStatus::Completed)],
+                        'amount',
+                    )
                     ->orderBy('period_start');
             })
             ->orderByDesc('start_date')->get()
@@ -290,17 +333,22 @@ class PaymentController extends Controller
                     'value' => (string) $tenant->id,
                     'label' => $tenant->name,
                 ])->all(),
-                'schedule_periods' => $lease->paymentSchedules->map(fn (PaymentSchedule $schedule) => [
-                    'value' => (string) $schedule->id,
-                    'label' => sprintf(
-                        '%s – %s (%s %s, %s)',
-                        $schedule->period_start->format('j M Y'),
-                        $schedule->period_end->format('j M Y'),
-                        $currency,
-                        number_format((float) $schedule->amount_expected),
-                        $schedule->status->label(),
-                    ),
-                ])->all(),
+                'schedule_periods' => $lease->paymentSchedules->map(function (PaymentSchedule $schedule) use ($currency) {
+                    $balance = round((float) $schedule->amount_expected - (float) ($schedule->paid_amount ?? 0), 2);
+
+                    return [
+                        'value' => (string) $schedule->id,
+                        'label' => sprintf(
+                            '%s – %s (%s %s due, %s)',
+                            $schedule->period_start->format('j M Y'),
+                            $schedule->period_end->format('j M Y'),
+                            $currency,
+                            number_format($balance),
+                            $schedule->status->label(),
+                        ),
+                        'balance' => number_format($balance, 2, '.', ''),
+                    ];
+                })->all(),
             ])
             ->all();
     }

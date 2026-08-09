@@ -5,6 +5,8 @@ namespace Tests\Feature;
 use App\Enums\LeaseStatus;
 use App\Enums\UnitStatus;
 use App\Models\Lease;
+use App\Models\Payment;
+use App\Models\PaymentSchedule;
 use App\Models\Tenant;
 use App\Models\Unit;
 use App\Models\User;
@@ -12,6 +14,7 @@ use Database\Seeders\PermissionCategorySeeder;
 use Database\Seeders\PermissionSeeder;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Inertia\Inertia;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
@@ -79,6 +82,63 @@ class LeaseManagementTest extends TestCase
                 ->component('leases/index')
                 ->has('leases.data', 2)
             );
+    }
+
+    public function test_lease_show_payment_schedule_tab_is_deferred_and_paginated(): void
+    {
+        $admin = $this->admin();
+        $lease = Lease::factory()->create();
+
+        $paid = PaymentSchedule::factory()->create([
+            'lease_id' => $lease->id,
+            'period_start' => now()->subMonth()->startOfMonth(),
+            'period_end' => now()->subMonth()->endOfMonth(),
+            'amount_expected' => 500000,
+            'status' => 'paid',
+        ]);
+        Payment::factory()->create([
+            'lease_id' => $lease->id,
+            'payment_schedule_id' => $paid->id,
+            'amount' => 500000,
+            'status' => 'completed',
+        ]);
+        PaymentSchedule::factory()->create([
+            'lease_id' => $lease->id,
+            'period_start' => now()->startOfMonth(),
+            'period_end' => now()->endOfMonth(),
+            'amount_expected' => 500000,
+            'status' => 'pending',
+        ]);
+
+        // The default tab ('payments') does not evaluate the schedule table.
+        $this->actingAs($admin)
+            ->get(route('leases.show', $lease))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('leases/show')
+                ->where('scheduleFilters.tab', 'payments')
+                ->missing('scheduleTable')
+            );
+
+        // Switching to the schedule tab deferred-fetches it, sorted and paginated,
+        // with the amount paid aggregated from linked completed payments.
+        // (Partial reloads return raw JSON rather than a rendered view, so they're
+        // asserted directly rather than through assertInertia().)
+        $this->actingAs($admin)
+            ->withHeaders([
+                'X-Inertia' => 'true',
+                'X-Inertia-Version' => Inertia::getVersion(),
+                'X-Inertia-Partial-Component' => 'leases/show',
+                'X-Inertia-Partial-Data' => 'scheduleTable,scheduleFilters',
+            ])
+            ->get(route('leases.show', ['lease' => $lease, 'tab' => 'schedule']))
+            ->assertOk()
+            ->assertJsonPath('component', 'leases/show')
+            ->assertJsonCount(2, 'props.scheduleTable.data')
+            ->assertJsonPath('props.scheduleTable.data.0.amount_paid', '500000.00')
+            ->assertJsonPath('props.scheduleTable.data.0.status', 'paid')
+            ->assertJsonPath('props.scheduleTable.data.1.status', 'pending')
+            ->assertJsonPath('props.scheduleTable.meta.total', 2);
     }
 
     public function test_admin_can_create_a_lease_with_co_tenants(): void

@@ -3,6 +3,8 @@
 namespace Tests\Feature;
 
 use App\Enums\PropertyType;
+use App\Models\Lease;
+use App\Models\Payment;
 use App\Models\Property;
 use App\Models\Unit;
 use App\Models\UnitFeature;
@@ -14,6 +16,7 @@ use Database\Seeders\RoleSeeder;
 use Database\Seeders\UnitFeatureSeeder;
 use Database\Seeders\UnitTypeSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Inertia\Inertia;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
@@ -120,6 +123,45 @@ class UnitManagementTest extends TestCase
                 ->where('unit.price_history.0.is_current', true)
                 ->where('unit.price_history.0.amount', '350000.00')
             );
+    }
+
+    public function test_unit_show_payments_tab_table_is_deferred_and_paginated(): void
+    {
+        $admin = $this->admin();
+        $property = $this->multiUnitProperty();
+        $unit = Unit::factory()->for($property)->create();
+        $lease = Lease::factory()->create(['unit_id' => $unit->id]);
+        Payment::factory()->create(['lease_id' => $lease->id, 'amount' => 100000]);
+        Payment::factory()->create(['lease_id' => $lease->id, 'amount' => 200000]);
+
+        // The default tab ('tenant') does not evaluate the payments table.
+        $this->actingAs($admin)
+            ->get(route('units.show', [$property, $unit]))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('units/show')
+                ->where('tableFilters.tab', 'tenant')
+                ->missing('table')
+            );
+
+        // Switching to the payments tab deferred-fetches it, sorted and paginated.
+        // (Partial reloads return raw JSON rather than a rendered view, so they're
+        // asserted directly rather than through assertInertia().)
+        $this->actingAs($admin)
+            ->withHeaders([
+                'X-Inertia' => 'true',
+                'X-Inertia-Version' => Inertia::getVersion(),
+                'X-Inertia-Partial-Component' => 'units/show',
+                'X-Inertia-Partial-Data' => 'table,tableFilters',
+            ])
+            ->get(route('units.show', [
+                'property' => $property, 'unit' => $unit, 'tab' => 'payments', 'sort' => 'amount', 'dir' => 'asc',
+            ]))
+            ->assertOk()
+            ->assertJsonPath('component', 'units/show')
+            ->assertJsonCount(2, 'props.table.data')
+            ->assertJsonPath('props.table.data.0.amount', '100000.00')
+            ->assertJsonPath('props.table.meta.total', 2);
     }
 
     public function test_create_and_edit_pages_are_permission_gated(): void

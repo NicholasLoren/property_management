@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Enums\BillingPeriod;
-use App\Enums\LeaseStatus;
 use App\Enums\PaymentStatus;
 use App\Enums\UnitStatus;
 use App\Http\Requests\Units\StoreUnitRequest;
@@ -22,6 +21,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Inertia\Inertia;
 use Inertia\Response;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
@@ -250,22 +250,46 @@ class UnitController extends Controller
         ]);
     }
 
-    public function show(Property $property, Unit $unit): Response
+    public function show(Request $request, Property $property, Unit $unit): Response
     {
         $unit->load([
             'unitType',
             'features',
             'media',
             'prices' => fn ($query) => $query->orderByDesc('effective_from'),
-            'leases' => fn ($query) => $query->orderByDesc('start_date'),
-            'leases.tenants',
-            'leases.payments' => fn ($query) => $query->orderByDesc('payment_date'),
-            'maintenanceRequests' => fn ($query) => $query->orderByDesc('created_at'),
+            'currentLease.tenants',
         ]);
+
+        $tab = $request->string('tab', 'tenant')->value();
+        $tab = in_array($tab, ['tenant', 'past-tenants', 'payments', 'leases', 'maintenance', 'performance'], true)
+            ? $tab
+            : 'tenant';
+
+        $sort = $request->string('sort')->value() ?: null;
+        $dir = $request->string('dir', 'desc')->value() === 'asc' ? 'asc' : 'desc';
+        $perPage = (int) $request->integer('per_page', 10);
+        $perPage = in_array($perPage, [10, 25, 50], true) ? $perPage : 10;
+        $page = max(1, (int) $request->integer('page', 1));
+
+        $isListTab = in_array($tab, ['past-tenants', 'payments', 'leases', 'maintenance'], true);
+        $fetchTable = fn () => $this->paginatedTabTable($unit, $tab, $sort, $dir, $perPage, $page);
 
         return Inertia::render('units/show', [
             'property' => ['id' => $property->id, 'name' => $property->name],
             'unit' => $this->transformForShow($unit),
+            'tableFilters' => [
+                'tab' => $tab,
+                'sort' => $sort,
+                'dir' => $dir,
+                'per_page' => $perPage,
+                'page' => $page,
+            ],
+            // Deferred (auto-fetched right after mount) when a list tab is the
+            // one shown on this request; otherwise left optional until the
+            // frontend explicitly requests it by switching to that tab.
+            'table' => $isListTab
+                ? Inertia::defer($fetchTable)
+                : Inertia::optional($fetchTable),
         ]);
     }
 
@@ -445,23 +469,14 @@ class UnitController extends Controller
      */
     private function transformForShow(Unit $unit): array
     {
-        $activeLease = $unit->leases->firstWhere('status', LeaseStatus::Active);
-        $currentTenants = $activeLease?->tenants ?? collect();
-        $currentTenantIds = $currentTenants->pluck('id');
+        $currentTenants = $unit->currentLease !== null ? $unit->currentLease->tenants : collect();
 
-        $pastTenants = $unit->leases
-            ->where('status', '!=', LeaseStatus::Active)
-            ->flatMap(fn (Lease $lease) => $lease->tenants)
-            ->reject(fn (Tenant $tenant) => $currentTenantIds->contains($tenant->id))
-            ->unique('id')
-            ->values();
+        $completedPayments = Payment::query()
+            ->whereHas('lease', fn (Builder $q) => $q->where('unit_id', $unit->id))
+            ->where('status', PaymentStatus::Completed);
 
-        $allPayments = $unit->leases
-            ->flatMap(fn (Lease $lease) => $lease->payments)
-            ->sortByDesc('payment_date')
-            ->values();
-
-        $completedPayments = $allPayments->where('status', PaymentStatus::Completed);
+        $leasesCount = $unit->leases()->count();
+        $maintenanceCount = $unit->maintenanceRequests()->count();
 
         return [
             'id' => $unit->id,
@@ -495,13 +510,116 @@ class UnitController extends Controller
                 'email' => $tenant->email,
                 'phone' => $tenant->phone,
             ])->values()->all(),
-            'past_tenants' => $pastTenants->map(fn (Tenant $tenant): array => [
+            'performance' => [
+                'total_collected' => (string) $completedPayments->sum('amount'),
+                'payments_count' => $completedPayments->count(),
+                'leases_count' => $leasesCount,
+                'avg_rent' => $leasesCount > 0
+                    ? (string) round((float) $unit->leases()->avg('rent_amount'), 2)
+                    : null,
+                'maintenance_count' => $maintenanceCount,
+                'maintenance_total_cost' => (string) $unit->maintenanceRequests()->sum('cost'),
+            ],
+            'created_at' => $unit->created_at?->toIso8601String(),
+        ];
+    }
+
+    /**
+     * @param  'asc'|'desc'  $dir
+     * @return array{data: array<int, array<string, mixed>>, meta: array<string, mixed>}
+     */
+    private function paginatedTabTable(Unit $unit, string $tab, ?string $sort, string $dir, int $perPage, int $page): array
+    {
+        return match ($tab) {
+            'past-tenants' => $this->paginatedPastTenants($unit, $sort, $dir, $perPage, $page),
+            'payments' => $this->paginatedPayments($unit, $sort, $dir, $perPage, $page),
+            'leases' => $this->paginatedLeases($unit, $sort, $dir, $perPage, $page),
+            'maintenance' => $this->paginatedMaintenance($unit, $sort, $dir, $perPage, $page),
+            default => ['data' => [], 'meta' => $this->emptyPaginationMeta($perPage)],
+        };
+    }
+
+    /**
+     * @param  'asc'|'desc'  $dir
+     * @return array{data: array<int, array<string, mixed>>, meta: array<string, mixed>}
+     */
+    private function paginatedPastTenants(Unit $unit, ?string $sort, string $dir, int $perPage, int $page): array
+    {
+        $activeLeaseId = $unit->currentLease?->id;
+
+        $query = Tenant::query()
+            ->whereHas('leases', fn (Builder $q) => $q->where('unit_id', $unit->id))
+            ->when($activeLeaseId, fn (Builder $q) => $q->whereDoesntHave(
+                'leases',
+                fn (Builder $q2) => $q2->where('leases.id', $activeLeaseId),
+            ));
+
+        $sortColumn = $sort === 'email' ? 'email' : 'name';
+        $query->orderBy($sortColumn, $dir)->orderBy('id', $dir);
+
+        $paginator = $query->paginate($perPage, page: $page);
+
+        return [
+            'data' => $paginator->getCollection()->map(fn (Tenant $tenant): array => [
                 'id' => $tenant->id,
                 'name' => $tenant->name,
                 'email' => $tenant->email,
                 'phone' => $tenant->phone,
             ])->all(),
-            'leases' => $unit->leases->map(fn (Lease $lease): array => [
+            'meta' => $this->paginationMeta($paginator),
+        ];
+    }
+
+    /**
+     * @param  'asc'|'desc'  $dir
+     * @return array{data: array<int, array<string, mixed>>, meta: array<string, mixed>}
+     */
+    private function paginatedPayments(Unit $unit, ?string $sort, string $dir, int $perPage, int $page): array
+    {
+        $query = Payment::query()->whereHas('lease', fn (Builder $q) => $q->where('unit_id', $unit->id));
+
+        $sortColumn = match ($sort) {
+            'amount' => 'amount',
+            'status' => 'status',
+            default => 'payment_date',
+        };
+        $query->orderBy($sortColumn, $dir)->orderBy('id', $dir);
+
+        $paginator = $query->paginate($perPage, page: $page);
+
+        return [
+            'data' => $paginator->getCollection()->map(fn (Payment $payment): array => [
+                'id' => $payment->id,
+                'lease_id' => $payment->lease_id,
+                'amount' => (string) $payment->amount,
+                'payment_date' => $payment->payment_date->toDateString(),
+                'method_label' => $payment->method->label(),
+                'status' => $payment->status->value,
+                'status_label' => $payment->status->label(),
+            ])->all(),
+            'meta' => $this->paginationMeta($paginator),
+        ];
+    }
+
+    /**
+     * @param  'asc'|'desc'  $dir
+     * @return array{data: array<int, array<string, mixed>>, meta: array<string, mixed>}
+     */
+    private function paginatedLeases(Unit $unit, ?string $sort, string $dir, int $perPage, int $page): array
+    {
+        $query = $unit->leases()->with('tenants');
+
+        $sortColumn = match ($sort) {
+            'status' => 'status',
+            'rent_amount' => 'rent_amount',
+            default => 'start_date',
+        };
+        $query->orderBy($sortColumn, $dir)->orderBy('id', $dir);
+
+        $paginator = $query->paginate($perPage, page: $page);
+
+        return [
+            'data' => $paginator->getCollection()->map(fn (Lease $lease): array => [
                 'id' => $lease->id,
                 'status' => $lease->status->value,
                 'status_label' => $lease->status->label(),
@@ -511,15 +629,29 @@ class UnitController extends Controller
                 'billing_period_label' => $lease->billing_period->label(),
                 'tenant_names' => $lease->tenants->pluck('name')->all(),
             ])->all(),
-            'payment_history' => $allPayments->map(fn (Payment $payment): array => [
-                'id' => $payment->id,
-                'amount' => (string) $payment->amount,
-                'payment_date' => $payment->payment_date->toDateString(),
-                'method_label' => $payment->method->label(),
-                'status' => $payment->status->value,
-                'status_label' => $payment->status->label(),
-            ])->all(),
-            'maintenance_history' => $unit->maintenanceRequests->map(fn (MaintenanceRequest $request): array => [
+            'meta' => $this->paginationMeta($paginator),
+        ];
+    }
+
+    /**
+     * @param  'asc'|'desc'  $dir
+     * @return array{data: array<int, array<string, mixed>>, meta: array<string, mixed>}
+     */
+    private function paginatedMaintenance(Unit $unit, ?string $sort, string $dir, int $perPage, int $page): array
+    {
+        $query = $unit->maintenanceRequests();
+
+        $sortColumn = match ($sort) {
+            'status' => 'status',
+            'cost' => 'cost',
+            default => 'created_at',
+        };
+        $query->orderBy($sortColumn, $dir)->orderBy('id', $dir);
+
+        $paginator = $query->paginate($perPage, page: $page);
+
+        return [
+            'data' => $paginator->getCollection()->map(fn (MaintenanceRequest $request): array => [
                 'id' => $request->id,
                 'title' => $request->title,
                 'status' => $request->status->value,
@@ -529,17 +661,38 @@ class UnitController extends Controller
                 'scheduled_date' => $request->scheduled_date?->toDateString(),
                 'completed_at' => $request->completed_at?->toIso8601String(),
             ])->all(),
-            'performance' => [
-                'total_collected' => (string) $completedPayments->sum('amount'),
-                'payments_count' => $completedPayments->count(),
-                'leases_count' => $unit->leases->count(),
-                'avg_rent' => $unit->leases->isNotEmpty()
-                    ? (string) round((float) $unit->leases->avg('rent_amount'), 2)
-                    : null,
-                'maintenance_count' => $unit->maintenanceRequests->count(),
-                'maintenance_total_cost' => (string) $unit->maintenanceRequests->sum('cost'),
-            ],
-            'created_at' => $unit->created_at?->toIso8601String(),
+            'meta' => $this->paginationMeta($paginator),
+        ];
+    }
+
+    /**
+     * @param  LengthAwarePaginator<int, mixed>  $paginator
+     * @return array<string, mixed>
+     */
+    private function paginationMeta(LengthAwarePaginator $paginator): array
+    {
+        return [
+            'current_page' => $paginator->currentPage(),
+            'last_page' => $paginator->lastPage(),
+            'per_page' => $paginator->perPage(),
+            'total' => $paginator->total(),
+            'from' => $paginator->firstItem(),
+            'to' => $paginator->lastItem(),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function emptyPaginationMeta(int $perPage): array
+    {
+        return [
+            'current_page' => 1,
+            'last_page' => 1,
+            'per_page' => $perPage,
+            'total' => 0,
+            'from' => null,
+            'to' => null,
         ];
     }
 

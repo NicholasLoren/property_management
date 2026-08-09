@@ -35,8 +35,8 @@ class StorePaymentRequest extends FormRequest
                     }
                 },
             ],
-            'payment_schedule_id' => [
-                'nullable',
+            'payment_schedule_ids' => ['required', 'array', 'min:1'],
+            'payment_schedule_ids.*' => [
                 Rule::exists('payment_schedules', 'id'),
                 function (string $attribute, mixed $value, Closure $fail): void {
                     $schedule = PaymentSchedule::query()->whereKey($value)->first();

@@ -1,4 +1,4 @@
-import { Head, Link, usePage } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 import {
     Banknote,
     Building2,
@@ -11,16 +11,29 @@ import {
     Users,
     Wrench,
 } from 'lucide-react';
+import { useMemo, useState } from 'react';
 import { Breadcrumbs } from '@/components/breadcrumbs';
+import { DataTable } from '@/components/data-table/data-table';
+import type { DataTablePaginationMeta } from '@/components/data-table/data-table-pagination';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { PhotoCarousel } from '@/components/ui/photo-carousel';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { usePermissions } from '@/hooks/use-permissions';
 import { formatCurrency } from '@/lib/currency';
-import { formatDate, formatDateTime } from '@/lib/datetime';
-import leases from '@/routes/leases';
-import maintenance from '@/routes/maintenance';
+import { formatDate } from '@/lib/datetime';
+import type {
+    LeaseTabRow,
+    MaintenanceTabRow,
+    PaymentTabRow,
+    TenantTabRow,
+} from '@/pages/units/show-tab-columns';
+import {
+    getLeaseTabColumns,
+    getMaintenanceTabColumns,
+    getPaymentTabColumns,
+    getTenantTabColumns,
+} from '@/pages/units/show-tab-columns';
 import properties from '@/routes/properties';
 import tenants from '@/routes/tenants';
 import units from '@/routes/units';
@@ -41,37 +54,6 @@ type UnitTenant = {
     name: string;
     email: string | null;
     phone: string | null;
-};
-
-type UnitLease = {
-    id: number;
-    status: string;
-    status_label: string;
-    start_date: string;
-    end_date: string;
-    rent_amount: string;
-    billing_period_label: string;
-    tenant_names: string[];
-};
-
-type UnitPayment = {
-    id: number;
-    amount: string;
-    payment_date: string;
-    method_label: string;
-    status: string;
-    status_label: string;
-};
-
-type UnitMaintenanceEntry = {
-    id: number;
-    title: string;
-    status: string;
-    status_label: string;
-    priority_label: string;
-    cost: string | null;
-    scheduled_date: string | null;
-    completed_at: string | null;
 };
 
 type UnitPerformance = {
@@ -95,39 +77,48 @@ type UnitShowRow = {
     price_history: UnitPriceHistoryEntry[];
     photos: { id: number; name: string; url: string }[];
     current_tenants: UnitTenant[];
-    past_tenants: UnitTenant[];
-    leases: UnitLease[];
-    payment_history: UnitPayment[];
-    maintenance_history: UnitMaintenanceEntry[];
     performance: UnitPerformance;
     created_at: string | null;
 };
 
-type PageProps = { property: PropertyContext; unit: UnitShowRow };
+type TableTab =
+    | 'tenant'
+    | 'past-tenants'
+    | 'payments'
+    | 'leases'
+    | 'maintenance'
+    | 'performance';
+
+const LIST_TABS: TableTab[] = [
+    'past-tenants',
+    'payments',
+    'leases',
+    'maintenance',
+];
+
+type TableFilters = {
+    tab: TableTab;
+    sort: string | null;
+    dir: 'asc' | 'desc';
+    per_page: number;
+    page: number;
+};
+
+type TabTableRow =
+    TenantTabRow | PaymentTabRow | LeaseTabRow | MaintenanceTabRow;
+
+type TabTable = { data: TabTableRow[]; meta: DataTablePaginationMeta };
+
+type PageProps = {
+    property: PropertyContext;
+    unit: UnitShowRow;
+    tableFilters: TableFilters;
+    table?: TabTable;
+};
 
 const STATUS_DOT_CLASS: Record<string, string> = {
     vacant: 'bg-warning',
     occupied: 'bg-success',
-};
-
-const PAYMENT_STATUS_CLASS: Record<string, string> = {
-    completed: 'bg-success-soft text-success',
-    refunded: 'bg-warning-soft text-warning',
-    failed: 'bg-destructive/10 text-destructive',
-};
-
-const LEASE_STATUS_CLASS: Record<string, string> = {
-    draft: 'bg-secondary text-text-secondary',
-    active: 'bg-success-soft text-success',
-    ended: 'bg-secondary text-text-secondary',
-    terminated: 'bg-destructive/10 text-destructive',
-};
-
-const MAINTENANCE_STATUS_CLASS: Record<string, string> = {
-    open: 'bg-warning-soft text-warning',
-    in_progress: 'bg-accent-soft text-accent-strong',
-    completed: 'bg-success-soft text-success',
-    cancelled: 'bg-secondary text-text-secondary',
 };
 
 function TenantRow({ tenant }: { tenant: UnitTenant }) {
@@ -161,10 +152,83 @@ function EmptyTabState({ message }: { message: string }) {
     );
 }
 
-export default function UnitShow({ property, unit }: PageProps) {
+export default function UnitShow({
+    property,
+    unit,
+    tableFilters,
+    table,
+}: PageProps) {
     const { currency, timezone } = usePage().props;
     const { can } = usePermissions();
+    const [isRefreshing, setIsRefreshing] = useState(false);
     const currentPrice = unit.price_history.find((price) => price.is_current);
+
+    function loadTable(next: Partial<TableFilters>) {
+        const params = { ...tableFilters, ...next };
+        setIsRefreshing(true);
+
+        router.get(
+            units.show([property.id, unit.id]).url,
+            {
+                tab: params.tab,
+                sort: params.sort ?? undefined,
+                dir: params.dir,
+                per_page: params.per_page,
+                page: params.page,
+            },
+            {
+                only: ['table', 'tableFilters'],
+                preserveState: true,
+                preserveScroll: true,
+                replace: true,
+                onFinish: () => setIsRefreshing(false),
+            },
+        );
+    }
+
+    function switchTab(tab: TableTab) {
+        if (LIST_TABS.includes(tab)) {
+            loadTable({ tab, sort: null, dir: 'desc', page: 1 });
+
+            return;
+        }
+
+        router.get(
+            units.show([property.id, unit.id]).url,
+            { tab },
+            {
+                only: ['tableFilters'],
+                preserveState: true,
+                preserveScroll: true,
+                replace: true,
+            },
+        );
+    }
+
+    const tenantColumns = useMemo(() => getTenantTabColumns(), []);
+    const paymentColumns = useMemo(
+        () => getPaymentTabColumns({ currency, timezone }),
+        [currency, timezone],
+    );
+    const leaseColumns = useMemo(
+        () => getLeaseTabColumns({ currency, timezone }),
+        [currency, timezone],
+    );
+    const maintenanceColumns = useMemo(
+        () => getMaintenanceTabColumns({ currency, timezone }),
+        [currency, timezone],
+    );
+
+    const isInitialTableLoad = LIST_TABS.includes(tableFilters.tab) && !table;
+
+    const tablePagination = table?.meta ?? {
+        current_page: 1,
+        last_page: 1,
+        per_page: tableFilters.per_page,
+        total: 0,
+        from: null,
+        to: null,
+    };
 
     return (
         <>
@@ -356,7 +420,10 @@ export default function UnitShow({ property, unit }: PageProps) {
             </div>
 
             <div className="mt-4 rounded-[14px] border border-border-soft bg-card p-5 shadow-sm">
-                <Tabs defaultValue="tenant">
+                <Tabs
+                    value={tableFilters.tab}
+                    onValueChange={(value) => switchTab(value as TableTab)}
+                >
                     <TabsList>
                         <TabsTrigger value="tenant">
                             <UserRound className="size-3.5" />
@@ -400,110 +467,114 @@ export default function UnitShow({ property, unit }: PageProps) {
                     </TabsContent>
 
                     <TabsContent value="past-tenants" className="pt-4">
-                        {unit.past_tenants.length > 0 ? (
-                            <div className="grid gap-2 sm:grid-cols-2">
-                                {unit.past_tenants.map((tenant) => (
-                                    <TenantRow
-                                        key={tenant.id}
-                                        tenant={tenant}
-                                    />
-                                ))}
-                            </div>
-                        ) : (
-                            <EmptyTabState message="No past tenants recorded for this unit." />
-                        )}
+                        <DataTable
+                            tableId="unit-past-tenants"
+                            columns={tenantColumns}
+                            data={
+                                tableFilters.tab === 'past-tenants'
+                                    ? ((table?.data ?? []) as TenantTabRow[])
+                                    : []
+                            }
+                            pagination={tablePagination}
+                            onPageChange={(page) => loadTable({ page })}
+                            onPerPageChange={(per_page) =>
+                                loadTable({ per_page, page: 1 })
+                            }
+                            sort={{
+                                column: tableFilters.sort ?? '',
+                                dir: tableFilters.dir,
+                            }}
+                            onSortChange={(column, dir) =>
+                                loadTable({ sort: column, dir, page: 1 })
+                            }
+                            onRefresh={() => loadTable({})}
+                            isRefreshing={
+                                isRefreshing ||
+                                (tableFilters.tab === 'past-tenants' &&
+                                    isInitialTableLoad)
+                            }
+                            isFiltered={false}
+                            emptyState={{
+                                icon: Users,
+                                title: 'No past tenants',
+                                description:
+                                    'Tenants who have moved out of this unit will show up here.',
+                            }}
+                        />
                     </TabsContent>
 
                     <TabsContent value="payments" className="pt-4">
-                        {unit.payment_history.length > 0 ? (
-                            <ul className="grid gap-2">
-                                {unit.payment_history.map((payment) => (
-                                    <li
-                                        key={payment.id}
-                                        className="flex items-center justify-between rounded-lg border border-border-soft px-3 py-2.5"
-                                    >
-                                        <div>
-                                            <div className="text-[13px] font-semibold text-foreground">
-                                                {formatCurrency(
-                                                    payment.amount,
-                                                    currency,
-                                                )}
-                                            </div>
-                                            <div className="text-xs text-text-tertiary">
-                                                {formatDate(
-                                                    payment.payment_date,
-                                                    timezone,
-                                                )}{' '}
-                                                · {payment.method_label}
-                                            </div>
-                                        </div>
-                                        <Badge
-                                            className={
-                                                PAYMENT_STATUS_CLASS[
-                                                    payment.status
-                                                ]
-                                            }
-                                        >
-                                            {payment.status_label}
-                                        </Badge>
-                                    </li>
-                                ))}
-                            </ul>
-                        ) : (
-                            <EmptyTabState message="No payments recorded against this unit yet." />
-                        )}
+                        <DataTable
+                            tableId="unit-payments"
+                            columns={paymentColumns}
+                            data={
+                                tableFilters.tab === 'payments'
+                                    ? ((table?.data ?? []) as PaymentTabRow[])
+                                    : []
+                            }
+                            pagination={tablePagination}
+                            onPageChange={(page) => loadTable({ page })}
+                            onPerPageChange={(per_page) =>
+                                loadTable({ per_page, page: 1 })
+                            }
+                            sort={{
+                                column: tableFilters.sort ?? '',
+                                dir: tableFilters.dir,
+                            }}
+                            onSortChange={(column, dir) =>
+                                loadTable({ sort: column, dir, page: 1 })
+                            }
+                            onRefresh={() => loadTable({})}
+                            isRefreshing={
+                                isRefreshing ||
+                                (tableFilters.tab === 'payments' &&
+                                    isInitialTableLoad)
+                            }
+                            isFiltered={false}
+                            emptyState={{
+                                icon: Banknote,
+                                title: 'No payments yet',
+                                description:
+                                    'Payments recorded against this unit’s leases will show up here.',
+                            }}
+                        />
                     </TabsContent>
 
                     <TabsContent value="leases" className="pt-4">
-                        {unit.leases.length > 0 ? (
-                            <ul className="grid gap-2">
-                                {unit.leases.map((lease) => (
-                                    <li key={lease.id}>
-                                        <Link
-                                            href={leases.show(lease.id)}
-                                            className="flex items-center justify-between gap-3 rounded-lg border border-border-soft px-3 py-2.5 hover:border-accent-brand"
-                                        >
-                                            <div>
-                                                <div className="text-[13px] font-semibold text-foreground">
-                                                    {lease.tenant_names.join(
-                                                        ', ',
-                                                    ) || 'No tenants'}
-                                                </div>
-                                                <div className="text-xs text-text-tertiary">
-                                                    {formatDate(
-                                                        lease.start_date,
-                                                        timezone,
-                                                    )}{' '}
-                                                    –{' '}
-                                                    {formatDate(
-                                                        lease.end_date,
-                                                        timezone,
-                                                    )}{' '}
-                                                    ·{' '}
-                                                    {formatCurrency(
-                                                        lease.rent_amount,
-                                                        currency,
-                                                    )}{' '}
-                                                    /{' '}
-                                                    {lease.billing_period_label.toLowerCase()}
-                                                </div>
-                                            </div>
-                                            <Badge
-                                                className={
-                                                    LEASE_STATUS_CLASS[
-                                                        lease.status
-                                                    ]
-                                                }
-                                            >
-                                                {lease.status_label}
-                                            </Badge>
-                                        </Link>
-                                    </li>
-                                ))}
-                            </ul>
-                        ) : (
-                            <EmptyTabState message="No leases have been created for this unit yet." />
-                        )}
+                        <DataTable
+                            tableId="unit-leases"
+                            columns={leaseColumns}
+                            data={
+                                tableFilters.tab === 'leases'
+                                    ? ((table?.data ?? []) as LeaseTabRow[])
+                                    : []
+                            }
+                            pagination={tablePagination}
+                            onPageChange={(page) => loadTable({ page })}
+                            onPerPageChange={(per_page) =>
+                                loadTable({ per_page, page: 1 })
+                            }
+                            sort={{
+                                column: tableFilters.sort ?? '',
+                                dir: tableFilters.dir,
+                            }}
+                            onSortChange={(column, dir) =>
+                                loadTable({ sort: column, dir, page: 1 })
+                            }
+                            onRefresh={() => loadTable({})}
+                            isRefreshing={
+                                isRefreshing ||
+                                (tableFilters.tab === 'leases' &&
+                                    isInitialTableLoad)
+                            }
+                            isFiltered={false}
+                            emptyState={{
+                                icon: History,
+                                title: 'No leases yet',
+                                description:
+                                    'Leases created for this unit will show up here.',
+                            }}
+                        />
                     </TabsContent>
 
                     <TabsContent value="performance" className="pt-4">
@@ -571,44 +642,41 @@ export default function UnitShow({ property, unit }: PageProps) {
                     </TabsContent>
 
                     <TabsContent value="maintenance" className="pt-4">
-                        {unit.maintenance_history.length > 0 ? (
-                            <ul className="grid gap-2">
-                                {unit.maintenance_history.map((request) => (
-                                    <li key={request.id}>
-                                        <Link
-                                            href={maintenance.show(request.id)}
-                                            className="flex items-center justify-between gap-3 rounded-lg border border-border-soft px-3 py-2.5 hover:border-accent-brand"
-                                        >
-                                            <div>
-                                                <div className="text-[13px] font-semibold text-foreground">
-                                                    {request.title}
-                                                </div>
-                                                <div className="text-xs text-text-tertiary">
-                                                    {request.priority_label}
-                                                    {request.scheduled_date &&
-                                                        ` · Scheduled ${formatDate(request.scheduled_date, timezone)}`}
-                                                    {request.completed_at &&
-                                                        ` · Completed ${formatDateTime(request.completed_at, timezone)}`}
-                                                    {request.cost &&
-                                                        ` · ${formatCurrency(request.cost, currency)}`}
-                                                </div>
-                                            </div>
-                                            <Badge
-                                                className={
-                                                    MAINTENANCE_STATUS_CLASS[
-                                                        request.status
-                                                    ]
-                                                }
-                                            >
-                                                {request.status_label}
-                                            </Badge>
-                                        </Link>
-                                    </li>
-                                ))}
-                            </ul>
-                        ) : (
-                            <EmptyTabState message="No maintenance requests recorded for this unit." />
-                        )}
+                        <DataTable
+                            tableId="unit-maintenance"
+                            columns={maintenanceColumns}
+                            data={
+                                tableFilters.tab === 'maintenance'
+                                    ? ((table?.data ??
+                                          []) as MaintenanceTabRow[])
+                                    : []
+                            }
+                            pagination={tablePagination}
+                            onPageChange={(page) => loadTable({ page })}
+                            onPerPageChange={(per_page) =>
+                                loadTable({ per_page, page: 1 })
+                            }
+                            sort={{
+                                column: tableFilters.sort ?? '',
+                                dir: tableFilters.dir,
+                            }}
+                            onSortChange={(column, dir) =>
+                                loadTable({ sort: column, dir, page: 1 })
+                            }
+                            onRefresh={() => loadTable({})}
+                            isRefreshing={
+                                isRefreshing ||
+                                (tableFilters.tab === 'maintenance' &&
+                                    isInitialTableLoad)
+                            }
+                            isFiltered={false}
+                            emptyState={{
+                                icon: Wrench,
+                                title: 'No maintenance requests',
+                                description:
+                                    'Maintenance requests recorded for this unit will show up here.',
+                            }}
+                        />
                     </TabsContent>
                 </Tabs>
             </div>

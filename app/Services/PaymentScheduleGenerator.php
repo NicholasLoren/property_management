@@ -45,22 +45,11 @@ class PaymentScheduleGenerator
         $interval = $lease->billingIntervalMonths();
         $rows = [];
 
-        // A lease whose due day doesn't match its move-in day gets one
-        // short "stub" period first, prorated to the day, before periods
-        // align to billing_day going forward.
+        // A lease whose due day doesn't match its move-in day has no
+        // schedule row for the days in between — those aren't billed, so
+        // the first real period starts at the first billing date.
         if ($last === null && $lease->start_date->day !== $lease->billing_day) {
-            $nextDue = $this->nextBillingDate($lease->start_date, $lease->billing_day);
-            $periodEnd = $nextDue->copy()->subDay();
-            $stubDays = $cursor->diffInDays($periodEnd) + 1;
-            $cycleDays = $this->settings->days_in_month * $interval;
-
-            $rows[] = [
-                'period_start' => $cursor->copy(),
-                'period_end' => $periodEnd,
-                'amount_expected' => round(((float) $lease->rent_amount / $cycleDays) * $stubDays, 2),
-            ];
-
-            $cursor = $nextDue;
+            $cursor = $this->nextBillingDate($lease->start_date, $lease->billing_day);
         }
 
         while ($cursor->lessThanOrEqualTo($horizon)) {

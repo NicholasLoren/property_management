@@ -1,4 +1,4 @@
-import { Head, Link, usePage } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 import {
     ArrowRight,
     Bath,
@@ -13,23 +13,29 @@ import {
     Pencil,
     Percent,
     Phone,
+    Search,
     Sparkles,
     TrendingDown,
     TrendingUp,
     Wallet,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Breadcrumbs } from '@/components/breadcrumbs';
+import { DataTable } from '@/components/data-table/data-table';
+import type { DataTablePaginationMeta } from '@/components/data-table/data-table-pagination';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { EntityAvatar } from '@/components/ui/entity-avatar';
+import { Input } from '@/components/ui/input';
 import { PhotoCarousel } from '@/components/ui/photo-carousel';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { usePermissions } from '@/hooks/use-permissions';
 import { formatCurrency } from '@/lib/currency';
+import { getUnitColumns } from '@/pages/units/columns';
 import properties from '@/routes/properties';
 import units from '@/routes/units';
 import type { PropertyPhoto } from '@/types/properties';
+import type { UnitRow } from '@/types/units';
 
 type QuickFacts = {
     total: number;
@@ -62,15 +68,6 @@ type PropertyLandlord = {
     avatar?: string | null;
 };
 
-type PropertyUnit = {
-    id: number;
-    name: string;
-    unit_type_label: string | null;
-    status: string;
-    status_label: string;
-    current_price: { amount: string; billing_period_label: string } | null;
-};
-
 type PropertyShowRow = {
     id: number;
     name: string;
@@ -83,22 +80,32 @@ type PropertyShowRow = {
     landlord: PropertyLandlord | null;
     amenities: string[];
     photos: PropertyPhoto[];
-    units_count: number;
-    units: PropertyUnit[];
     quick_facts: QuickFacts;
     price_summary: PriceSummary;
     performance: PropertyPerformance;
     created_at: string | null;
 };
 
-type PageProps = { property: PropertyShowRow };
+type UnitsTab = 'units' | 'landlord' | 'performance';
+
+type UnitsFilters = {
+    tab: UnitsTab;
+    search: string;
+    sort: string;
+    dir: 'asc' | 'desc';
+    per_page: number;
+    page: number;
+};
+
+type UnitsTable = { data: UnitRow[]; meta: DataTablePaginationMeta };
+
+type PageProps = {
+    property: PropertyShowRow;
+    unitsFilters: UnitsFilters;
+    unitsTable?: UnitsTable;
+};
 
 const DESCRIPTION_PREVIEW_LENGTH = 220;
-
-const UNIT_STATUS_CLASS: Record<string, string> = {
-    vacant: 'bg-warning-soft text-warning',
-    occupied: 'bg-success-soft text-success',
-};
 
 function formatDaysAgo(iso: string | null): string {
     if (!iso) {
@@ -153,10 +160,87 @@ function StatTile({
     );
 }
 
-export default function PropertyShow({ property }: PageProps) {
+export default function PropertyShow({
+    property,
+    unitsFilters,
+    unitsTable,
+}: PageProps) {
     const { currency } = usePage().props;
     const { can } = usePermissions();
     const [descriptionExpanded, setDescriptionExpanded] = useState(false);
+    const [isRefreshing, setIsRefreshing] = useState(false);
+    const [search, setSearch] = useState(unitsFilters.search);
+    const searchDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    function loadUnits(next: Partial<UnitsFilters> = {}) {
+        const params = { ...unitsFilters, ...next, tab: 'units' as const };
+        setIsRefreshing(true);
+
+        router.get(
+            properties.show(property).url,
+            {
+                tab: params.tab,
+                search: params.search || undefined,
+                sort: params.sort,
+                dir: params.dir,
+                per_page: params.per_page,
+                page: params.page,
+            },
+            {
+                only: ['unitsTable', 'unitsFilters'],
+                preserveState: true,
+                preserveScroll: true,
+                replace: true,
+                onFinish: () => setIsRefreshing(false),
+            },
+        );
+    }
+
+    function switchTab(tab: UnitsTab) {
+        if (tab === 'units') {
+            loadUnits({ page: 1 });
+
+            return;
+        }
+
+        router.get(
+            properties.show(property).url,
+            { tab },
+            {
+                only: ['unitsFilters'],
+                preserveState: true,
+                preserveScroll: true,
+                replace: true,
+            },
+        );
+    }
+
+    function onSearchChange(value: string) {
+        setSearch(value);
+
+        if (searchDebounce.current) {
+            clearTimeout(searchDebounce.current);
+        }
+
+        searchDebounce.current = setTimeout(() => {
+            loadUnits({ search: value, page: 1 });
+        }, 300);
+    }
+
+    const unitColumns = useMemo(
+        () =>
+            getUnitColumns({
+                propertyId: property.id,
+                canEdit: false,
+                canDelete: false,
+                currency,
+                onEdit: () => {},
+                onTrash: () => {},
+            }),
+        [property.id, currency],
+    );
+
+    const isInitialUnitsLoad = unitsFilters.tab === 'units' && !unitsTable;
 
     const { quick_facts: facts, price_summary: price } = property;
     const occupancyRate =
@@ -400,7 +484,10 @@ export default function PropertyShow({ property }: PageProps) {
             )}
 
             <div className="mt-4 rounded-[14px] border border-border-soft bg-card p-5 shadow-sm">
-                <Tabs defaultValue="units">
+                <Tabs
+                    value={unitsFilters.tab}
+                    onValueChange={(value) => switchTab(value as UnitsTab)}
+                >
                     <TabsList>
                         <TabsTrigger value="units">
                             <DoorOpen className="size-3.5" />
@@ -417,58 +504,67 @@ export default function PropertyShow({ property }: PageProps) {
                     </TabsList>
 
                     <TabsContent value="units" className="pt-4">
-                        {property.type === 'multi_unit' && (
-                            <div className="mb-3 flex justify-end">
-                                {can('units.view') && (
-                                    <Button asChild variant="outline">
-                                        <Link href={units.index(property)}>
-                                            Manage units
-                                            <ArrowRight className="size-[15px]" />
-                                        </Link>
-                                    </Button>
-                                )}
-                            </div>
-                        )}
-                        {property.units.length > 0 ? (
-                            <ul className="grid gap-2 sm:grid-cols-2">
-                                {property.units.map((unit) => (
-                                    <li key={unit.id}>
-                                        <Link
-                                            href={units.show([
-                                                property.id,
-                                                unit.id,
-                                            ])}
-                                            className="flex items-center justify-between gap-3 rounded-lg border border-border-soft px-3 py-2.5 hover:border-accent-brand"
-                                        >
-                                            <div>
-                                                <div className="text-[13px] font-semibold text-foreground">
-                                                    {unit.name}
-                                                </div>
-                                                <div className="text-xs text-text-tertiary">
-                                                    {unit.unit_type_label ??
-                                                        '—'}
-                                                    {unit.current_price &&
-                                                        ` · ${formatCurrency(unit.current_price.amount, currency)} / ${unit.current_price.billing_period_label.toLowerCase()}`}
-                                                </div>
-                                            </div>
-                                            <Badge
-                                                className={
-                                                    UNIT_STATUS_CLASS[
-                                                        unit.status
-                                                    ]
-                                                }
-                                            >
-                                                {unit.status_label}
-                                            </Badge>
-                                        </Link>
-                                    </li>
-                                ))}
-                            </ul>
-                        ) : (
-                            <p className="rounded-lg border border-dashed border-border-soft px-3 py-6 text-center text-[13px] text-text-tertiary">
-                                No units recorded for this property yet.
-                            </p>
-                        )}
+                        <DataTable
+                            tableId="property-units"
+                            columns={unitColumns}
+                            data={unitsTable?.data ?? []}
+                            pagination={
+                                unitsTable?.meta ?? {
+                                    current_page: 1,
+                                    last_page: 1,
+                                    per_page: unitsFilters.per_page,
+                                    total: 0,
+                                    from: null,
+                                    to: null,
+                                }
+                            }
+                            onPageChange={(page) => loadUnits({ page })}
+                            onPerPageChange={(per_page) =>
+                                loadUnits({ per_page, page: 1 })
+                            }
+                            sort={{
+                                column: unitsFilters.sort,
+                                dir: unitsFilters.dir,
+                            }}
+                            onSortChange={(column, dir) =>
+                                loadUnits({ sort: column, dir, page: 1 })
+                            }
+                            onRefresh={() => loadUnits()}
+                            isRefreshing={isRefreshing || isInitialUnitsLoad}
+                            isFiltered={unitsFilters.search !== ''}
+                            emptyState={{
+                                icon: DoorOpen,
+                                title: 'No units yet',
+                                description:
+                                    'Units added to this property will show up here.',
+                            }}
+                            toolbar={
+                                <>
+                                    <div className="relative w-[220px]">
+                                        <Search className="pointer-events-none absolute top-1/2 left-[11px] size-[15px] -translate-y-1/2 text-text-tertiary" />
+                                        <Input
+                                            value={search}
+                                            onChange={(e) =>
+                                                onSearchChange(e.target.value)
+                                            }
+                                            placeholder="Search units…"
+                                            className="pl-9"
+                                        />
+                                    </div>
+                                    {property.type === 'multi_unit' &&
+                                        can('units.view') && (
+                                            <Button asChild variant="outline">
+                                                <Link
+                                                    href={units.index(property)}
+                                                >
+                                                    Manage units
+                                                    <ArrowRight className="size-[15px]" />
+                                                </Link>
+                                            </Button>
+                                        )}
+                                </>
+                            }
+                        />
                     </TabsContent>
 
                     <TabsContent value="landlord" className="pt-4">
