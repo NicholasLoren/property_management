@@ -6,6 +6,7 @@ use App\Enums\UserStatus;
 use App\Support\UploadLimits;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\Password;
 
 class UpdateUserRequest extends FormRequest
 {
@@ -27,6 +28,8 @@ class UpdateUserRequest extends FormRequest
             ],
             'role' => ['required', 'string', Rule::exists('roles', 'name')->whereNull('deleted_at')],
             'status' => ['required', Rule::enum(UserStatus::class)],
+            // Left blank, the user's password is unchanged.
+            'password' => ['nullable', 'string', Password::default(), 'confirmed'],
             'landlord_id_number' => ['nullable', 'string', 'max:255'],
             'landlord_address' => ['nullable', 'string', 'max:255'],
             'landlord_phone' => ['nullable', 'string', 'max:32'],

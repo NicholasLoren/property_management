@@ -18,6 +18,7 @@ import {
     TrendingDown,
     TrendingUp,
     Users as UsersIcon,
+    Wallet,
     Wrench,
 } from 'lucide-react';
 import type { ComponentType } from 'react';
@@ -34,6 +35,7 @@ import companySettings from '@/routes/company-settings';
 import documents from '@/routes/documents';
 import expenses from '@/routes/expenses';
 import extras from '@/routes/extras';
+import financials from '@/routes/financials';
 import incomes from '@/routes/incomes';
 import landlords from '@/routes/landlords';
 import leases from '@/routes/leases';
@@ -144,6 +146,11 @@ export function useStewardNavGroups(unreadMessagesCount = 0): NavGroup[] {
                     title: 'Expenses',
                     icon: TrendingDown,
                     href: can('expenses.view') ? expenses.index() : undefined,
+                },
+                {
+                    title: 'Financials',
+                    icon: Wallet,
+                    href: can('reports.view') ? financials.index() : undefined,
                 },
                 {
                     title: 'Reports',

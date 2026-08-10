@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\PwaManifestController;
 use Illuminate\Support\Facades\Route;
 
@@ -10,7 +11,7 @@ Route::redirect('/', '/dashboard')->name('home');
 Route::get('manifest.webmanifest', [PwaManifestController::class, 'show'])->name('pwa.manifest');
 
 Route::middleware(['auth', 'verified'])->group(function () {
-    Route::inertia('dashboard', 'dashboard')->name('dashboard');
+    Route::get('dashboard', [DashboardController::class, 'show'])->name('dashboard');
 });
 
 require __DIR__.'/settings.php';
@@ -30,6 +31,7 @@ require __DIR__.'/payments.php';
 require __DIR__.'/expenses.php';
 require __DIR__.'/incomes.php';
 require __DIR__.'/documents.php';
+require __DIR__.'/financials.php';
 require __DIR__.'/reports.php';
 require __DIR__.'/extras.php';
 require __DIR__.'/geocoding.php';

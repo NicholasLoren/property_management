@@ -18,6 +18,15 @@
             text-transform: uppercase;
             margin: 0 0 16px;
         }
+        .brand-header img {
+            height: 18px;
+            width: auto;
+            vertical-align: middle;
+            margin-right: 8px;
+        }
+        .brand-header span {
+            vertical-align: middle;
+        }
         h1 {
             font-size: 16px;
             margin: 0 0 4px;
@@ -44,7 +53,12 @@
     </style>
 </head>
 <body>
-    <p class="brand-header">{{ $headerText }}</p>
+    <p class="brand-header">
+        @if (! empty($logoDataUri))
+            <img src="{{ $logoDataUri }}" alt="">
+        @endif
+        <span>{{ $headerText }}</span>
+    </p>
     <h1>{{ $title }}</h1>
     <p class="meta">Exported {{ now()->setTimezone(app(\App\Settings\GeneralSettings::class)->timezone)->toDayDateTimeString() }} &middot; {{ count($rows) }} {{ Str::plural('record', count($rows)) }}</p>
 

@@ -20,3 +20,21 @@ export type ReportPropertyRow = {
     occupancy_rate: number;
     maintenance_open: number;
 };
+
+export type MonthlyTrendPoint = {
+    month: string;
+    full_month: string;
+    income: string;
+    expense: string;
+};
+
+export type CategoryBreakdownRow = {
+    category: string;
+    amount: string;
+};
+
+export type LeaseStatusRow = {
+    status: string;
+    status_label: string;
+    count: number;
+};

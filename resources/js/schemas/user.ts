@@ -18,6 +18,20 @@ export const userSchema = z.object({
         .max(255),
     role: z.string().min(1, 'Role is required.'),
     status: z.string().optional(),
+    // Optional on both create (blank = email a set-password link) and edit
+    // (blank = leave the current password unchanged). The match-confirmation
+    // check and full strength policy are enforced server-side
+    // (Password::default() + the `confirmed` rule) — kept out of this schema
+    // since useInertiaZodForm requires a plain ZodObject, which rules out a
+    // cross-field .refine() here.
+    password: z
+        .string()
+        .optional()
+        .refine(
+            (value) => !value || value.length >= 8,
+            'Password must be at least 8 characters.',
+        ),
+    password_confirmation: z.string().optional(),
     landlord_id_number: z.string().max(255).optional().nullable(),
     landlord_address: z.string().max(255).optional().nullable(),
     landlord_phone: z.string().max(32).optional().nullable(),

@@ -3,6 +3,7 @@ import type { FormEvent } from 'react';
 import { useState } from 'react';
 import { Breadcrumbs } from '@/components/breadcrumbs';
 import InputError from '@/components/input-error';
+import PasswordInput from '@/components/password-input';
 import { Button } from '@/components/ui/button';
 import { FileDropzone } from '@/components/ui/file-dropzone';
 import { Input } from '@/components/ui/input';
@@ -45,6 +46,7 @@ type PageProps = {
     roles: Option[];
     statuses: Option[];
     defaultRole?: string | null;
+    passwordRules: string;
 };
 
 export default function UserForm({
@@ -52,6 +54,7 @@ export default function UserForm({
     roles,
     statuses,
     defaultRole,
+    passwordRules,
 }: PageProps) {
     const { name: appName } = usePage().props;
     const isEdit = Boolean(user);
@@ -65,6 +68,8 @@ export default function UserForm({
             email: user?.email ?? '',
             role: user?.role ?? defaultRole ?? roles[0]?.value ?? '',
             status: user?.status ?? statuses[0]?.value,
+            password: '',
+            password_confirmation: '',
             landlord_id_number: user?.landlord_id_number ?? '',
             landlord_address: user?.landlord_address ?? '',
             landlord_phone: user?.landlord_phone ?? '',
@@ -216,6 +221,61 @@ export default function UserForm({
                             <InputError message={errors.status} />
                         </div>
                     )}
+                </div>
+
+                <div className="mt-5 border-t border-border-soft pt-4">
+                    <p className="mb-1 text-xs font-semibold tracking-wide text-text-tertiary uppercase">
+                        {isEdit ? 'Reset password' : 'Set a password'}
+                    </p>
+                    <p className="mb-3 text-[13px] text-text-secondary">
+                        {isEdit
+                            ? 'Leave blank to keep their current password.'
+                            : `Leave blank to email them a link to set their own password instead of choosing one for them.`}
+                    </p>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                        <div className="grid gap-1.5">
+                            <Label htmlFor="password">
+                                {isEdit ? 'New password' : 'Password'}
+                            </Label>
+                            <PasswordInput
+                                id="password"
+                                autoComplete="new-password"
+                                value={data.password}
+                                onChange={(e) =>
+                                    setField('password', e.target.value)
+                                }
+                                placeholder={
+                                    isEdit
+                                        ? 'Leave blank to keep unchanged'
+                                        : 'Leave blank to email a set-password link'
+                                }
+                                passwordrules={passwordRules}
+                            />
+                            <InputError message={errors.password} />
+                        </div>
+
+                        <div className="grid gap-1.5">
+                            <Label htmlFor="password_confirmation">
+                                Confirm password
+                            </Label>
+                            <PasswordInput
+                                id="password_confirmation"
+                                autoComplete="new-password"
+                                value={data.password_confirmation}
+                                onChange={(e) =>
+                                    setField(
+                                        'password_confirmation',
+                                        e.target.value,
+                                    )
+                                }
+                                placeholder="Confirm password"
+                                passwordrules={passwordRules}
+                            />
+                            <InputError
+                                message={errors.password_confirmation}
+                            />
+                        </div>
+                    </div>
                 </div>
 
                 {showLandlordSection && (

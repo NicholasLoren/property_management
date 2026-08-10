@@ -5,6 +5,7 @@ namespace App\Http\Requests\Users;
 use App\Support\UploadLimits;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\Password;
 
 class InviteUserRequest extends FormRequest
 {
@@ -22,6 +23,10 @@ class InviteUserRequest extends FormRequest
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
             'role' => ['required', 'string', Rule::exists('roles', 'name')->whereNull('deleted_at')],
+            // Left blank, the user is emailed a link to set their own
+            // password (see UserController::store); set here, they're
+            // told directly and no email goes out.
+            'password' => ['nullable', 'string', Password::default(), 'confirmed'],
             'landlord_id_number' => ['nullable', 'string', 'max:255'],
             'landlord_address' => ['nullable', 'string', 'max:255'],
             'landlord_phone' => ['nullable', 'string', 'max:32'],

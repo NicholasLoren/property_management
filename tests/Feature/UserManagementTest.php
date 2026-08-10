@@ -4,11 +4,14 @@ namespace Tests\Feature;
 
 use App\Enums\UserStatus;
 use App\Models\User;
+use App\Notifications\UserInvited;
 use Database\Seeders\PermissionCategorySeeder;
 use Database\Seeders\PermissionSeeder;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
@@ -117,6 +120,131 @@ class UserManagementTest extends TestCase
             'status' => UserStatus::Invited->value,
         ]);
         $this->assertTrue(User::whereEmail('jamie@example.com')->firstOrFail()->hasRole('Manager'));
+    }
+
+    public function test_inviting_a_user_emails_them_a_working_password_reset_link(): void
+    {
+        Notification::fake();
+
+        $admin = $this->superAdmin();
+
+        $this->actingAs($admin)
+            ->post(route('users.store'), [
+                'name' => 'Jamie Rivera',
+                'email' => 'jamie@example.com',
+                'role' => 'Manager',
+            ])
+            ->assertRedirect();
+
+        $user = User::whereEmail('jamie@example.com')->firstOrFail();
+
+        Notification::assertSentTo(
+            $user,
+            function (UserInvited $notification) use ($user) {
+                $mail = $notification->toMail($user);
+                $actionUrl = $mail->actionUrl;
+
+                $this->assertStringContainsString('/reset-password/', $actionUrl);
+                $this->assertStringContainsString('email='.urlencode($user->email), $actionUrl);
+
+                // The token embedded in the link is a real, usable
+                // password-reset token — not a decoy.
+                return Password::tokenExists($user, $this->tokenFromUrl($actionUrl));
+            },
+        );
+    }
+
+    private function tokenFromUrl(string $url): string
+    {
+        $path = parse_url($url, PHP_URL_PATH);
+
+        return basename((string) $path);
+    }
+
+    public function test_admin_can_set_a_password_directly_when_inviting_a_user(): void
+    {
+        Notification::fake();
+
+        $admin = $this->superAdmin();
+
+        $this->actingAs($admin)
+            ->post(route('users.store'), [
+                'name' => 'Jamie Rivera',
+                'email' => 'jamie@example.com',
+                'role' => 'Manager',
+                'password' => 'a-strong-password-123',
+                'password_confirmation' => 'a-strong-password-123',
+            ])
+            ->assertRedirect();
+
+        $user = User::whereEmail('jamie@example.com')->firstOrFail();
+
+        // A password was chosen for them directly, so no "set your
+        // password" email is needed.
+        Notification::assertNotSentTo($user, UserInvited::class);
+
+        $this->assertTrue(
+            auth()->validate(['email' => $user->email, 'password' => 'a-strong-password-123']),
+        );
+    }
+
+    public function test_invite_password_and_confirmation_must_match(): void
+    {
+        $admin = $this->superAdmin();
+
+        $this->actingAs($admin)
+            ->post(route('users.store'), [
+                'name' => 'Jamie Rivera',
+                'email' => 'jamie@example.com',
+                'role' => 'Manager',
+                'password' => 'a-strong-password-123',
+                'password_confirmation' => 'does-not-match',
+            ])
+            ->assertSessionHasErrors('password');
+
+        $this->assertDatabaseMissing('users', ['email' => 'jamie@example.com']);
+    }
+
+    public function test_admin_can_reset_an_existing_users_password(): void
+    {
+        $admin = $this->superAdmin();
+        $target = User::factory()->create();
+        $target->assignRole('Manager');
+
+        $this->actingAs($admin)
+            ->patch(route('users.update', $target), [
+                'name' => $target->name,
+                'email' => $target->email,
+                'role' => 'Manager',
+                'status' => UserStatus::Active->value,
+                'password' => 'a-brand-new-password-456',
+                'password_confirmation' => 'a-brand-new-password-456',
+            ])
+            ->assertRedirect();
+
+        $this->assertTrue(
+            auth()->validate(['email' => $target->email, 'password' => 'a-brand-new-password-456']),
+        );
+    }
+
+    public function test_updating_a_user_without_a_password_leaves_it_unchanged(): void
+    {
+        $admin = $this->superAdmin();
+        $target = User::factory()->create(['password' => 'original-password-789']);
+        $target->assignRole('Manager');
+
+        $this->actingAs($admin)
+            ->patch(route('users.update', $target), [
+                'name' => 'Renamed',
+                'email' => $target->email,
+                'role' => 'Manager',
+                'status' => UserStatus::Active->value,
+            ])
+            ->assertRedirect();
+
+        $this->assertTrue(
+            auth()->validate(['email' => $target->email, 'password' => 'original-password-789']),
+        );
     }
 
     public function test_admin_can_update_a_user(): void

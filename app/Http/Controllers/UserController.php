@@ -9,13 +9,15 @@ use App\Http\Requests\Users\UpdateUserRequest;
 use App\Models\LandlordDetail;
 use App\Models\Role;
 use App\Models\User;
+use App\Notifications\UserInvited;
 use App\Settings\BrandingSettings;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rules\Password as PasswordRule;
 use Inertia\Inertia;
 use Inertia\Response;
 use Symfony\Component\HttpFoundation\Response as HttpResponse;
@@ -157,21 +159,31 @@ class UserController extends Controller
             'roles' => $roles,
             'statuses' => $this->statusOptions(),
             'defaultRole' => $defaultRole,
+            'passwordRules' => PasswordRule::defaults()->toPasswordRulesString(),
         ]);
     }
 
     public function store(InviteUserRequest $request): RedirectResponse
     {
+        $password = $request->validated('password');
+
         $user = User::create([
             'name' => $request->validated('name'),
             'email' => $request->validated('email'),
             'status' => UserStatus::Invited,
-            'password' => Hash::make(Str::random(32)),
+            // A password set here is relied on directly — Password::default()
+            // already vetted its strength — otherwise a random, unusable one
+            // holds the account until the emailed reset link is used.
+            'password' => $password ?? Str::random(32),
         ]);
 
         $user->assignRole($request->validated('role'));
         $this->syncLandlordDetail($request, $user);
         $this->syncAvatar($request, $user);
+
+        if ($password === null) {
+            $user->notify(new UserInvited(Password::createToken($user)));
+        }
 
         Inertia::flash('toast', ['type' => 'success', 'message' => "{$user->name} was invited."]);
 
@@ -186,6 +198,7 @@ class UserController extends Controller
             'user' => $this->transformForForm($user),
             'roles' => $this->roleOptions(),
             'statuses' => $this->statusOptions(),
+            'passwordRules' => PasswordRule::defaults()->toPasswordRulesString(),
         ]);
     }
 
@@ -195,6 +208,12 @@ class UserController extends Controller
         $user->syncRoles([$request->validated('role')]);
         $this->syncLandlordDetail($request, $user);
         $this->syncAvatar($request, $user);
+
+        $password = $request->validated('password');
+
+        if ($password !== null) {
+            $user->forceFill(['password' => $password])->save();
+        }
 
         Inertia::flash('toast', ['type' => 'success', 'message' => "{$user->name} was updated."]);
 

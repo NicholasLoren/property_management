@@ -50,6 +50,29 @@ class Branding
     }
 
     /**
+     * The uploaded company logo, inlined as a base64 data URI so PDF
+     * generation (DomPDF) can embed it without needing network/filesystem
+     * access to the storage disk — null when no logo has been uploaded, so
+     * callers can fall back to text-only branding.
+     */
+    public static function logoDataUri(): ?string
+    {
+        $media = CompanyProfile::current()->getFirstMedia('logo');
+
+        if ($media === null) {
+            return null;
+        }
+
+        $contents = file_get_contents($media->getPath());
+
+        if ($contents === false) {
+            return null;
+        }
+
+        return 'data:'.$media->mime_type.';base64,'.base64_encode($contents);
+    }
+
+    /**
      * The uploaded app icon's URL, for UI that wants to show the company's
      * mark in place of a generic logo (e.g. the sidebar) — null when
      * nothing's been uploaded, so callers can fall back to that icon.
