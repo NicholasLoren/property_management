@@ -5,13 +5,7 @@ import { Breadcrumbs } from '@/components/breadcrumbs';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { formatCurrency } from '@/lib/currency';
 import { formatDate } from '@/lib/datetime';
 import reports from '@/routes/reports';
@@ -88,10 +82,17 @@ export default function ReportShow({
         key: string;
         dir: 'asc' | 'desc';
     } | null>(null);
+    const [scopeLoading, setScopeLoading] = useState(false);
 
     const visibleUnits = filters.property_id
         ? units.filter((unit) => unit.property_id === filters.property_id)
         : units;
+
+    const propertyOptions = [
+        { value: 'all', label: 'All properties' },
+        ...properties,
+    ];
+    const unitOptions = [{ value: 'all', label: 'All units' }, ...visibleUnits];
 
     function reload(partial: Partial<Filters>) {
         const next = { ...filters, ...partial };
@@ -104,7 +105,13 @@ export default function ReportShow({
                 property_id: next.property_id || undefined,
                 unit_id: next.unit_id || undefined,
             },
-            { preserveState: true, preserveScroll: true, replace: true },
+            {
+                preserveState: true,
+                preserveScroll: true,
+                replace: true,
+                onStart: () => setScopeLoading(true),
+                onFinish: () => setScopeLoading(false),
+            },
         );
     }
 
@@ -202,6 +209,7 @@ export default function ReportShow({
                                 onChange={(e) =>
                                     reload({ from: e.target.value })
                                 }
+                                disabled={scopeLoading}
                                 className="w-[160px]"
                             />
                         </div>
@@ -214,6 +222,7 @@ export default function ReportShow({
                                 type="date"
                                 value={filters.to ?? ''}
                                 onChange={(e) => reload({ to: e.target.value })}
+                                disabled={scopeLoading}
                                 className="w-[160px]"
                             />
                         </div>
@@ -223,53 +232,42 @@ export default function ReportShow({
                     <Label htmlFor="property_id" className="text-xs">
                         Property
                     </Label>
-                    <Select
+                    <SearchableSelect
+                        id="property_id"
                         value={filters.property_id ?? 'all'}
-                        onValueChange={(value) =>
+                        onChange={(value) =>
                             reload({
-                                property_id: value === 'all' ? null : value,
+                                property_id:
+                                    !value || value === 'all' ? null : value,
                                 unit_id: null,
                             })
                         }
-                    >
-                        <SelectTrigger id="property_id" className="w-[200px]">
-                            <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="all">All properties</SelectItem>
-                            {properties.map((property) => (
-                                <SelectItem
-                                    key={property.value}
-                                    value={property.value}
-                                >
-                                    {property.label}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
+                        options={propertyOptions}
+                        loading={scopeLoading}
+                        placeholder="All properties"
+                        searchPlaceholder="Search properties…"
+                        className="w-[200px]"
+                    />
                 </div>
                 <div className="grid gap-1.5">
                     <Label htmlFor="unit_id" className="text-xs">
                         Unit
                     </Label>
-                    <Select
+                    <SearchableSelect
+                        id="unit_id"
                         value={filters.unit_id ?? 'all'}
-                        onValueChange={(value) =>
-                            reload({ unit_id: value === 'all' ? null : value })
+                        onChange={(value) =>
+                            reload({
+                                unit_id:
+                                    !value || value === 'all' ? null : value,
+                            })
                         }
-                    >
-                        <SelectTrigger id="unit_id" className="w-[200px]">
-                            <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="all">All units</SelectItem>
-                            {visibleUnits.map((unit) => (
-                                <SelectItem key={unit.value} value={unit.value}>
-                                    {unit.label}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
+                        options={unitOptions}
+                        loading={scopeLoading}
+                        placeholder="All units"
+                        searchPlaceholder="Search units…"
+                        className="w-[200px]"
+                    />
                 </div>
             </div>
 

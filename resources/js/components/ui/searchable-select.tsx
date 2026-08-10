@@ -37,6 +37,12 @@ type SearchableSelectProps = {
     searchPlaceholder?: string;
     emptyMessage?: string;
     disabled?: boolean;
+    /**
+     * External fetch in flight (e.g. the page is reloading after this
+     * field's value changed) — distinct from the internal `onSearch`
+     * spinner. Disables the trigger and swaps its icon for a spinner.
+     */
+    loading?: boolean;
     className?: string;
     id?: string;
 };
@@ -51,6 +57,7 @@ export function SearchableSelect({
     searchPlaceholder = 'Search…',
     emptyMessage = 'No results found.',
     disabled = false,
+    loading = false,
     className,
     id,
 }: SearchableSelectProps) {
@@ -61,7 +68,7 @@ export function SearchableSelect({
     const [asyncOptions, setAsyncOptions] = useState<SearchableSelectOption[]>(
         [],
     );
-    const [loading, setLoading] = useState(false);
+    const [searching, setSearching] = useState(false);
     // Every option seen so far (static list, or accumulated async results),
     // kept so the trigger can still resolve the selected label after the
     // search query changes and the original option scrolls out of results.
@@ -93,12 +100,12 @@ export function SearchableSelect({
             return;
         }
 
-        setLoading(true);
+        setSearching(true);
 
         const handle = setTimeout(() => {
             onSearch(query)
                 .then((results) => setAsyncOptions(results))
-                .finally(() => setLoading(false));
+                .finally(() => setSearching(false));
         }, debounceMs);
 
         return () => clearTimeout(handle);
@@ -125,7 +132,7 @@ export function SearchableSelect({
                     variant="outline"
                     role="combobox"
                     aria-expanded={open}
-                    disabled={disabled}
+                    disabled={disabled || loading}
                     className={cn(
                         'w-full justify-between font-normal',
                         !selected && 'text-muted-foreground',
@@ -135,7 +142,11 @@ export function SearchableSelect({
                     <span className="truncate">
                         {selected ? selected.label : placeholder}
                     </span>
-                    <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+                    {loading ? (
+                        <Loader2 className="ml-2 size-4 shrink-0 animate-spin opacity-50" />
+                    ) : (
+                        <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+                    )}
                 </Button>
             </PopoverTrigger>
             <PopoverContent
@@ -149,7 +160,7 @@ export function SearchableSelect({
                         placeholder={searchPlaceholder}
                     />
                     <CommandList>
-                        {loading ? (
+                        {searching ? (
                             <div className="flex items-center justify-center gap-2 py-6 text-sm text-muted-foreground">
                                 <Loader2 className="size-4 animate-spin" />
                                 Searching…

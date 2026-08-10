@@ -8,6 +8,7 @@ import {
     Wallet,
     Wrench,
 } from 'lucide-react';
+import { useState } from 'react';
 import type { ComponentType } from 'react';
 import {
     CategoryBarChart,
@@ -18,13 +19,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { formatCurrency } from '@/lib/currency';
 import financials from '@/routes/financials';
 import type {
@@ -94,6 +89,12 @@ export default function FinancialsIndex({
     lease_status_distribution: leaseStatusDistribution,
 }: PageProps) {
     const { currency } = usePage().props;
+    const [scopeLoading, setScopeLoading] = useState(false);
+
+    const propertyOptions = [
+        { value: 'all', label: 'All properties' },
+        ...properties,
+    ];
 
     function reload(partial: Partial<typeof filters>) {
         const next = { ...filters, ...partial };
@@ -105,7 +106,13 @@ export default function FinancialsIndex({
                 to: next.to,
                 property_id: next.property_id || undefined,
             },
-            { preserveState: true, preserveScroll: true, replace: true },
+            {
+                preserveState: true,
+                preserveScroll: true,
+                replace: true,
+                onStart: () => setScopeLoading(true),
+                onFinish: () => setScopeLoading(false),
+            },
         );
     }
 
@@ -163,6 +170,7 @@ export default function FinancialsIndex({
                         type="date"
                         value={filters.from}
                         onChange={(e) => reload({ from: e.target.value })}
+                        disabled={scopeLoading}
                         className="w-[160px]"
                     />
                 </div>
@@ -175,6 +183,7 @@ export default function FinancialsIndex({
                         type="date"
                         value={filters.to}
                         onChange={(e) => reload({ to: e.target.value })}
+                        disabled={scopeLoading}
                         className="w-[160px]"
                     />
                 </div>
@@ -182,29 +191,21 @@ export default function FinancialsIndex({
                     <Label htmlFor="property_id" className="text-xs">
                         Property
                     </Label>
-                    <Select
+                    <SearchableSelect
+                        id="property_id"
                         value={filters.property_id ?? 'all'}
-                        onValueChange={(value) =>
+                        onChange={(value) =>
                             reload({
-                                property_id: value === 'all' ? null : value,
+                                property_id:
+                                    !value || value === 'all' ? null : value,
                             })
                         }
-                    >
-                        <SelectTrigger id="property_id" className="w-[220px]">
-                            <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="all">All properties</SelectItem>
-                            {properties.map((property) => (
-                                <SelectItem
-                                    key={property.value}
-                                    value={property.value}
-                                >
-                                    {property.label}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
+                        options={propertyOptions}
+                        loading={scopeLoading}
+                        placeholder="All properties"
+                        searchPlaceholder="Search properties…"
+                        className="w-[220px]"
+                    />
                 </div>
             </div>
 
