@@ -1,1 +1,0 @@
-function e(e,t){return`${t} ${Number(e).toLocaleString()}`}export{e as t};

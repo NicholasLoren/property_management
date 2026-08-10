@@ -1,1 +1,0 @@
-import{c as e,s as t}from"./schemas-BQk8JNFp.js";var n=t({name:e().trim().min(1,`Name is required.`).max(255)}),r=t({name:e().trim().min(1,`Name is required.`).max(255).regex(/^[A-Za-z0-9_-]+$/,`Letters, numbers, - and _ only.`),label:e().trim().min(1,`Label is required.`).max(255)});export{r as n,n as t};

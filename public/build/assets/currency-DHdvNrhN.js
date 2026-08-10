@@ -1,0 +1,1 @@
+function e(e,t){return`${t} ${Number(e).toLocaleString()}`}function t(e,t){return`${t} ${new Intl.NumberFormat(void 0,{notation:`compact`,maximumFractionDigits:1}).format(Number(e))}`}export{t as n,e as t};
