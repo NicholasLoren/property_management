@@ -107,7 +107,7 @@ export function FileDropzone({
     const shownExisting = !value && existing;
 
     return (
-        <div className="grid gap-1.5">
+        <div className="grid grid-cols-1 gap-1.5">
             {value || shownExisting ? (
                 <div className="flex items-center gap-3 rounded-lg border border-border-soft bg-secondary p-2.5">
                     {previewUrl ? (

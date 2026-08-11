@@ -3,12 +3,13 @@ import {
     Building2,
     Download,
     FileSpreadsheet,
+    Search,
     TrendingDown,
     TrendingUp,
     Wallet,
     Wrench,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { ComponentType } from 'react';
 import {
     CategoryBarChart,
@@ -16,11 +17,14 @@ import {
     RankedBarChart,
     RevenueTrendChart,
 } from '@/components/charts/portfolio-charts';
+import type { SortState } from '@/components/data-table/data-table';
+import { DataTable } from '@/components/data-table/data-table';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { formatCurrency } from '@/lib/currency';
+import { getFinancialsColumns } from '@/pages/financials/columns';
 import financials from '@/routes/financials';
 import type {
     CategoryBreakdownRow,
@@ -90,6 +94,62 @@ export default function FinancialsIndex({
 }: PageProps) {
     const { currency } = usePage().props;
     const [scopeLoading, setScopeLoading] = useState(false);
+    const [breakdownSearch, setBreakdownSearch] = useState('');
+    const [breakdownSort, setBreakdownSort] = useState<SortState>({
+        column: 'property_name',
+        dir: 'asc',
+    });
+    const [breakdownPage, setBreakdownPage] = useState(1);
+    const [breakdownPerPage, setBreakdownPerPage] = useState(10);
+
+    const financialsColumns = useMemo(
+        () => getFinancialsColumns(currency),
+        [currency],
+    );
+
+    const filteredBreakdown = useMemo(
+        () =>
+            breakdownSearch === ''
+                ? breakdown
+                : breakdown.filter((row) =>
+                      row.property_name
+                          .toLowerCase()
+                          .includes(breakdownSearch.toLowerCase()),
+                  ),
+        [breakdown, breakdownSearch],
+    );
+
+    const sortedBreakdown = useMemo(() => {
+        const { column, dir } = breakdownSort;
+        const factor = dir === 'asc' ? 1 : -1;
+
+        return [...filteredBreakdown].sort((a, b) => {
+            const key = column as keyof ReportPropertyRow;
+            const aValue = a[key];
+            const bValue = b[key];
+
+            if (typeof aValue === 'number' && typeof bValue === 'number') {
+                return (aValue - bValue) * factor;
+            }
+
+            return (
+                String(aValue).localeCompare(String(bValue), undefined, {
+                    numeric: true,
+                }) * factor
+            );
+        });
+    }, [filteredBreakdown, breakdownSort]);
+
+    const breakdownTotal = sortedBreakdown.length;
+    const breakdownLastPage = Math.max(
+        1,
+        Math.ceil(breakdownTotal / breakdownPerPage),
+    );
+    const breakdownCurrentPage = Math.min(breakdownPage, breakdownLastPage);
+    const paginatedBreakdown = sortedBreakdown.slice(
+        (breakdownCurrentPage - 1) * breakdownPerPage,
+        breakdownCurrentPage * breakdownPerPage,
+    );
 
     const propertyOptions = [
         { value: 'all', label: 'All properties' },
@@ -281,71 +341,59 @@ export default function FinancialsIndex({
                 />
             </div>
 
-            <div className="overflow-x-auto rounded-[14px] border border-border-soft bg-card shadow-sm">
-                <table className="w-full text-sm">
-                    <thead>
-                        <tr className="border-b border-border-soft text-left text-xs font-semibold text-text-tertiary uppercase">
-                            <th className="px-4 py-3">Property</th>
-                            <th className="px-4 py-3">Rent collected</th>
-                            <th className="px-4 py-3">Other income</th>
-                            <th className="px-4 py-3">Expenses</th>
-                            <th className="px-4 py-3">Net income</th>
-                            <th className="px-4 py-3">Occupancy</th>
-                            <th className="px-4 py-3">Open maintenance</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border-soft">
-                        {breakdown.length === 0 ? (
-                            <tr>
-                                <td
-                                    colSpan={7}
-                                    className="px-4 py-6 text-center text-text-tertiary"
-                                >
-                                    No properties to report on.
-                                </td>
-                            </tr>
-                        ) : (
-                            breakdown.map((row) => (
-                                <tr key={row.property_name}>
-                                    <td className="px-4 py-3 font-medium">
-                                        {row.property_name}
-                                    </td>
-                                    <td className="px-4 py-3 text-success">
-                                        {formatCurrency(
-                                            row.rent_collected,
-                                            currency,
-                                        )}
-                                    </td>
-                                    <td className="px-4 py-3 text-success">
-                                        {formatCurrency(
-                                            row.other_income,
-                                            currency,
-                                        )}
-                                    </td>
-                                    <td className="px-4 py-3 text-destructive">
-                                        {formatCurrency(
-                                            row.total_expense,
-                                            currency,
-                                        )}
-                                    </td>
-                                    <td className="px-4 py-3 font-semibold">
-                                        {formatCurrency(
-                                            row.net_income,
-                                            currency,
-                                        )}
-                                    </td>
-                                    <td className="px-4 py-3">
-                                        {row.occupancy_rate}%
-                                    </td>
-                                    <td className="px-4 py-3">
-                                        {row.maintenance_open}
-                                    </td>
-                                </tr>
-                            ))
-                        )}
-                    </tbody>
-                </table>
-            </div>
+            <DataTable
+                tableId="financials-property-breakdown"
+                columns={financialsColumns}
+                data={paginatedBreakdown}
+                pagination={{
+                    current_page: breakdownCurrentPage,
+                    last_page: breakdownLastPage,
+                    per_page: breakdownPerPage,
+                    total: breakdownTotal,
+                    from:
+                        breakdownTotal === 0
+                            ? null
+                            : (breakdownCurrentPage - 1) * breakdownPerPage + 1,
+                    to:
+                        breakdownTotal === 0
+                            ? null
+                            : Math.min(
+                                  breakdownCurrentPage * breakdownPerPage,
+                                  breakdownTotal,
+                              ),
+                }}
+                onPageChange={setBreakdownPage}
+                onPerPageChange={(perPage) => {
+                    setBreakdownPerPage(perPage);
+                    setBreakdownPage(1);
+                }}
+                sort={breakdownSort}
+                onSortChange={(column, dir) => {
+                    setBreakdownSort({ column, dir });
+                    setBreakdownPage(1);
+                }}
+                isFiltered={breakdownSearch !== ''}
+                emptyState={{
+                    icon: Building2,
+                    title: 'No properties to report on',
+                    description:
+                        'Properties with activity in this date range will show up here.',
+                }}
+                toolbar={
+                    <div className="relative w-[220px]">
+                        <Search className="pointer-events-none absolute top-1/2 left-[11px] size-[15px] -translate-y-1/2 text-text-tertiary" />
+                        <Input
+                            value={breakdownSearch}
+                            onChange={(e) => {
+                                setBreakdownSearch(e.target.value);
+                                setBreakdownPage(1);
+                            }}
+                            placeholder="Search properties…"
+                            className="pl-9"
+                        />
+                    </div>
+                }
+            />
         </>
     );
 }

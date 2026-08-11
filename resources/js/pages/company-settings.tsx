@@ -139,15 +139,15 @@ export default function CompanySettings({
                 </p>
             </div>
 
-            <div className="grid max-w-[900px] items-start gap-7 md:grid-cols-[200px_1fr]">
-                <nav className="flex flex-col gap-0.5 md:sticky md:top-[74px]">
+            <div className="grid max-w-[900px] grid-cols-1 items-start gap-7 md:grid-cols-[200px_1fr]">
+                <nav className="flex min-w-0 flex-col gap-0.5 md:sticky md:top-[74px]">
                     {SECTIONS.map((item) => (
                         <Link
                             key={item.key}
                             href={companySettings.edit(item.key)}
                             prefetch
                             className={cn(
-                                'flex items-center gap-2.5 rounded-[6px] px-2.5 py-2 text-left text-[13.5px] font-medium',
+                                'flex min-w-0 items-center gap-2.5 rounded-[6px] px-2.5 py-2 text-left text-[13.5px] font-medium',
                                 section === item.key
                                     ? 'bg-accent-soft font-semibold text-accent-strong'
                                     : 'text-text-secondary hover:bg-secondary hover:text-foreground',
@@ -166,7 +166,7 @@ export default function CompanySettings({
                     ))}
                 </nav>
 
-                <div>
+                <div className="min-w-0">
                     {section === 'general' && (
                         <GeneralSection
                             general={general}

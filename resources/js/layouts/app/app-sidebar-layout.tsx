@@ -35,6 +35,11 @@ export default function AppSidebarLayout({ children }: AppLayoutProps) {
                 <SheetContent
                     side="left"
                     className="w-[240px] p-0 [&>button]:hidden"
+                    onClick={(event) => {
+                        if ((event.target as HTMLElement).closest('a')) {
+                            setMobileNavOpen(false);
+                        }
+                    }}
                 >
                     <SheetTitle className="sr-only">Navigation menu</SheetTitle>
                     <AppSidebar className="flex h-full w-full border-r-0" />
