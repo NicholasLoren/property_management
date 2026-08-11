@@ -156,6 +156,27 @@ export default function FinancialsIndex({
         ...properties,
     ];
 
+    const occupancyByProperty = useMemo(() => {
+        const nameCounts = new Map<string, number>();
+
+        for (const row of breakdown) {
+            nameCounts.set(
+                row.property_name,
+                (nameCounts.get(row.property_name) ?? 0) + 1,
+            );
+        }
+
+        return [...breakdown]
+            .sort((a, b) => b.occupancy_rate - a.occupancy_rate)
+            .map((row) => ({
+                label:
+                    (nameCounts.get(row.property_name) ?? 0) > 1
+                        ? `${row.property_name} (#${row.property_id})`
+                        : row.property_name,
+                value: row.occupancy_rate,
+            }));
+    }, [breakdown]);
+
     function reload(partial: Partial<typeof filters>) {
         const next = { ...filters, ...partial };
 
@@ -329,12 +350,7 @@ export default function FinancialsIndex({
                 <RankedBarChart
                     title="Occupancy by property"
                     subtitle="Highest occupancy first"
-                    data={[...breakdown]
-                        .sort((a, b) => b.occupancy_rate - a.occupancy_rate)
-                        .map((row) => ({
-                            label: row.property_name,
-                            value: row.occupancy_rate,
-                        }))}
+                    data={occupancyByProperty}
                     valueFormatter={(value) => `${value}%`}
                     hue="var(--accent-brand)"
                     emptyMessage="No properties to report on."

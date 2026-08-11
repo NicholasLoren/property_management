@@ -1,52 +1,54 @@
 import { Head, Link, router } from '@inertiajs/react';
-import {
-    Building2,
-    DoorOpen,
-    IdCard,
-    KeyRound,
-    Search,
-    Users as UsersIcon,
-} from 'lucide-react';
+import { Search } from 'lucide-react';
 import { useRef, useState } from 'react';
-import type { ComponentType } from 'react';
 import { Input } from '@/components/ui/input';
-
-type SearchResultType = 'property' | 'unit' | 'tenant' | 'landlord' | 'user';
-
-type SearchResult = {
-    type: SearchResultType;
-    id: number;
-    title: string;
-    subtitle: string | null;
-    url: string;
-};
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import type { SearchResult, SearchResultType } from '@/lib/search-results';
+import {
+    SEARCH_SECTION_META,
+    SEARCH_SECTION_ORDER,
+} from '@/lib/search-results';
 
 type PageProps = {
     query: string;
     results: Partial<Record<SearchResultType, SearchResult[]>>;
 };
 
-const SECTION_META: Record<
-    SearchResultType,
-    { label: string; icon: ComponentType<{ className?: string }> }
-> = {
-    property: { label: 'Properties', icon: Building2 },
-    unit: { label: 'Units', icon: DoorOpen },
-    tenant: { label: 'Tenants', icon: UsersIcon },
-    landlord: { label: 'Landlords', icon: KeyRound },
-    user: { label: 'Users', icon: IdCard },
-};
+function ResultList({ items }: { items: SearchResult[] }) {
+    return (
+        <div className="divide-y divide-border-soft rounded-[14px] border border-border-soft bg-card shadow-sm">
+            {items.map((item) => {
+                const Icon = SEARCH_SECTION_META[item.type].icon;
 
-const SECTION_ORDER: SearchResultType[] = [
-    'property',
-    'unit',
-    'tenant',
-    'landlord',
-    'user',
-];
+                return (
+                    <Link
+                        key={`${item.type}-${item.id}`}
+                        href={item.url}
+                        className="flex items-center gap-3 px-4 py-3 hover:bg-secondary"
+                    >
+                        <span className="flex size-9 shrink-0 items-center justify-center rounded-[8px] bg-secondary text-text-secondary">
+                            <Icon className="size-4" />
+                        </span>
+                        <span className="min-w-0 flex-1">
+                            <span className="block truncate text-[13.5px] font-semibold text-foreground">
+                                {item.title}
+                            </span>
+                            {item.subtitle && (
+                                <span className="block truncate text-[12px] text-text-tertiary">
+                                    {item.subtitle}
+                                </span>
+                            )}
+                        </span>
+                    </Link>
+                );
+            })}
+        </div>
+    );
+}
 
 export default function SearchIndex({ query, results }: PageProps) {
     const [search, setSearch] = useState(query);
+    const [activeTab, setActiveTab] = useState('all');
     const searchDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     function reload(value: string) {
@@ -69,10 +71,21 @@ export default function SearchIndex({ query, results }: PageProps) {
         }, 300);
     }
 
-    const totalResults = SECTION_ORDER.reduce(
+    const typesWithResults = SEARCH_SECTION_ORDER.filter(
+        (type) => (results[type]?.length ?? 0) > 0,
+    );
+    const totalResults = typesWithResults.reduce(
         (sum, type) => sum + (results[type]?.length ?? 0),
         0,
     );
+
+    // Fall back to "All" if the active tab's type has no results for the
+    // current query (e.g. a narrower search cleared out that type).
+    const effectiveTab =
+        activeTab !== 'all' &&
+        !typesWithResults.includes(activeTab as SearchResultType)
+            ? 'all'
+            : activeTab;
 
     return (
         <>
@@ -83,8 +96,8 @@ export default function SearchIndex({ query, results }: PageProps) {
                     Search
                 </h1>
                 <p className="mt-1 text-[13px] text-text-secondary">
-                    Find properties, units, tenants, landlords, and users
-                    across your portfolio.
+                    Find properties, units, tenants, landlords, and users across
+                    your portfolio.
                 </p>
             </div>
 
@@ -112,48 +125,50 @@ export default function SearchIndex({ query, results }: PageProps) {
             )}
 
             {query.trim() !== '' && totalResults > 0 && (
-                <div className="grid gap-6">
-                    {SECTION_ORDER.map((type) => {
-                        const items = results[type];
+                <Tabs value={effectiveTab} onValueChange={setActiveTab}>
+                    <TabsList>
+                        <TabsTrigger value="all">
+                            All
+                            <span className="text-text-tertiary">
+                                {totalResults}
+                            </span>
+                        </TabsTrigger>
+                        {typesWithResults.map((type) => {
+                            const { label, icon: Icon } =
+                                SEARCH_SECTION_META[type];
 
-                        if (!items || items.length === 0) {
-                            return null;
-                        }
+                            return (
+                                <TabsTrigger key={type} value={type}>
+                                    <Icon className="size-3.5" />
+                                    {label}
+                                    <span className="text-text-tertiary">
+                                        {results[type]?.length}
+                                    </span>
+                                </TabsTrigger>
+                            );
+                        })}
+                    </TabsList>
 
-                        const { label, icon: Icon } = SECTION_META[type];
-
-                        return (
+                    <TabsContent
+                        value="all"
+                        className="grid grid-cols-1 gap-6 pt-4"
+                    >
+                        {typesWithResults.map((type) => (
                             <div key={type}>
                                 <h2 className="mb-2.5 text-[13px] font-semibold text-text-secondary">
-                                    {label}
+                                    {SEARCH_SECTION_META[type].label}
                                 </h2>
-                                <div className="divide-y divide-border-soft rounded-[14px] border border-border-soft bg-card shadow-sm">
-                                    {items.map((item) => (
-                                        <Link
-                                            key={`${item.type}-${item.id}`}
-                                            href={item.url}
-                                            className="flex items-center gap-3 px-4 py-3 hover:bg-secondary"
-                                        >
-                                            <span className="flex size-9 shrink-0 items-center justify-center rounded-[8px] bg-secondary text-text-secondary">
-                                                <Icon className="size-4" />
-                                            </span>
-                                            <span className="min-w-0 flex-1">
-                                                <span className="block truncate text-[13.5px] font-semibold text-foreground">
-                                                    {item.title}
-                                                </span>
-                                                {item.subtitle && (
-                                                    <span className="block truncate text-[12px] text-text-tertiary">
-                                                        {item.subtitle}
-                                                    </span>
-                                                )}
-                                            </span>
-                                        </Link>
-                                    ))}
-                                </div>
+                                <ResultList items={results[type] ?? []} />
                             </div>
-                        );
-                    })}
-                </div>
+                        ))}
+                    </TabsContent>
+
+                    {typesWithResults.map((type) => (
+                        <TabsContent key={type} value={type} className="pt-4">
+                            <ResultList items={results[type] ?? []} />
+                        </TabsContent>
+                    ))}
+                </Tabs>
             )}
         </>
     );

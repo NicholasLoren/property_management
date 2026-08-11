@@ -36,7 +36,8 @@ class PaymentController extends Controller
         $query->with(['lease.unit.property', 'tenant']);
 
         if ($filters['search'] !== '') {
-            $query->where(fn (Builder $q) => $q->whereHas('tenant', fn (Builder $t) => $t->where('name', 'like', "%{$filters['search']}%"))
+            $query->where(fn (Builder $q) => $q->where('reference', 'like', "%{$filters['search']}%")
+                ->orWhereHas('tenant', fn (Builder $t) => $t->where('name', 'like', "%{$filters['search']}%"))
                 ->orWhereHas('lease.unit', fn (Builder $u) => $u->where('name', 'like', "%{$filters['search']}%"))
                 ->orWhereHas('lease.unit.property', fn (Builder $p) => $p->where('name', 'like', "%{$filters['search']}%")));
         }

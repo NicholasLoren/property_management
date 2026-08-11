@@ -87,6 +87,13 @@ export function initializeTheme(): void {
     mediaQuery()?.addEventListener('change', handleSystemThemeChange);
 }
 
+const subscribeMedia = (callback: () => void) => {
+    const mq = mediaQuery();
+    mq?.addEventListener('change', callback);
+
+    return () => mq?.removeEventListener('change', callback);
+};
+
 export function useAppearance(): UseAppearanceReturn {
     const appearance: Appearance = useSyncExternalStore(
         subscribe,
@@ -94,9 +101,20 @@ export function useAppearance(): UseAppearanceReturn {
         () => 'system',
     );
 
-    const resolvedAppearance: ResolvedAppearance = isDarkMode(appearance)
-        ? 'dark'
-        : 'light';
+    // Read the live media query through useSyncExternalStore too, so its
+    // server snapshot (false) matches the client's *first* hydration pass —
+    // only after mount does it reflect the browser's real preference. This
+    // avoids the resolvedAppearance flipping between SSR and hydration.
+    const prefersDarkNow = useSyncExternalStore(
+        subscribeMedia,
+        () => mediaQuery()?.matches ?? false,
+        () => false,
+    );
+
+    const resolvedAppearance: ResolvedAppearance =
+        appearance === 'dark' || (appearance === 'system' && prefersDarkNow)
+            ? 'dark'
+            : 'light';
 
     const updateAppearance = (mode: Appearance): void => {
         currentAppearance = mode;

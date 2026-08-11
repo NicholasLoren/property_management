@@ -2,8 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\TransactionType;
+use App\Models\Document;
+use App\Models\Lease;
+use App\Models\MaintenanceRequest;
+use App\Models\Payment;
 use App\Models\Property;
 use App\Models\Tenant;
+use App\Models\Transaction;
 use App\Models\Unit;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
@@ -134,6 +140,136 @@ class SearchController extends Controller
                     'title' => $person->name,
                     'subtitle' => $person->email,
                     'url' => route('users.show', $person),
+                ];
+            }
+        }
+
+        if ($user->can('leases.view')) {
+            $leases = Lease::query()
+                ->with(['unit.property', 'tenants'])
+                ->where(fn ($query) => $query->whereHas('unit', fn ($u) => $u->where('name', 'like', "%{$q}%")
+                    ->orWhereHas('property', fn ($p) => $p->where('name', 'like', "%{$q}%")))
+                    ->orWhereHas('tenants', fn ($t) => $t->where('name', 'like', "%{$q}%")))
+                ->limit($limit)
+                ->get();
+
+            foreach ($leases as $lease) {
+                $tenantNames = $lease->tenants->pluck('name')->implode(', ');
+
+                $results[] = [
+                    'type' => 'lease',
+                    'id' => $lease->id,
+                    'title' => $lease->unit
+                        ? "{$lease->unit->name} — {$lease->unit->property?->name}"
+                        : "Lease #{$lease->id}",
+                    'subtitle' => $tenantNames !== '' ? $tenantNames : $lease->status->label(),
+                    'url' => route('leases.show', $lease),
+                ];
+            }
+        }
+
+        if ($user->can('payments.view')) {
+            $payments = Payment::query()
+                ->with(['tenant', 'lease.unit.property'])
+                ->where(fn ($query) => $query->where('reference', 'like', "%{$q}%")
+                    ->orWhereHas('tenant', fn ($t) => $t->where('name', 'like', "%{$q}%"))
+                    ->orWhereHas('lease.unit', fn ($u) => $u->where('name', 'like', "%{$q}%"))
+                    ->orWhereHas('lease.unit.property', fn ($p) => $p->where('name', 'like', "%{$q}%")))
+                ->limit($limit)
+                ->get();
+
+            foreach ($payments as $payment) {
+                $searchTerm = $payment->reference ?: $payment->tenant?->name;
+
+                $results[] = [
+                    'type' => 'payment',
+                    'id' => $payment->id,
+                    'title' => $payment->reference ?: "Payment #{$payment->id}",
+                    'subtitle' => $payment->tenant?->name,
+                    'url' => route('payments.index', $searchTerm ? ['search' => $searchTerm] : []),
+                ];
+            }
+        }
+
+        if ($user->can('expenses.view')) {
+            $expenses = Transaction::query()
+                ->where('type', TransactionType::Expense->value)
+                ->with('property')
+                ->where(fn ($query) => $query->where('description', 'like', "%{$q}%")
+                    ->orWhere('code', 'like', "%{$q}%")
+                    ->orWhereHas('property', fn ($p) => $p->where('name', 'like', "%{$q}%")))
+                ->limit($limit)
+                ->get();
+
+            foreach ($expenses as $expense) {
+                $results[] = [
+                    'type' => 'expense',
+                    'id' => $expense->id,
+                    'title' => $expense->description ?: $expense->code,
+                    'subtitle' => $expense->property?->name,
+                    'url' => route('expenses.index', ['search' => $expense->code]),
+                ];
+            }
+        }
+
+        if ($user->can('incomes.view')) {
+            $incomes = Transaction::query()
+                ->where('type', TransactionType::Income->value)
+                ->with('property')
+                ->where(fn ($query) => $query->where('description', 'like', "%{$q}%")
+                    ->orWhere('code', 'like', "%{$q}%")
+                    ->orWhereHas('property', fn ($p) => $p->where('name', 'like', "%{$q}%")))
+                ->limit($limit)
+                ->get();
+
+            foreach ($incomes as $income) {
+                $results[] = [
+                    'type' => 'income',
+                    'id' => $income->id,
+                    'title' => $income->description ?: $income->code,
+                    'subtitle' => $income->property?->name,
+                    'url' => route('incomes.index', ['search' => $income->code]),
+                ];
+            }
+        }
+
+        if ($user->can('maintenance.view')) {
+            $maintenanceRequests = MaintenanceRequest::query()
+                ->with('unit.property')
+                ->where(fn ($query) => $query->where('title', 'like', "%{$q}%")
+                    ->orWhere('description', 'like', "%{$q}%")
+                    ->orWhereHas('unit', fn ($u) => $u->where('name', 'like', "%{$q}%")
+                        ->orWhereHas('property', fn ($p) => $p->where('name', 'like', "%{$q}%"))))
+                ->limit($limit)
+                ->get();
+
+            foreach ($maintenanceRequests as $maintenanceRequest) {
+                $results[] = [
+                    'type' => 'maintenance',
+                    'id' => $maintenanceRequest->id,
+                    'title' => $maintenanceRequest->title,
+                    'subtitle' => $maintenanceRequest->unit
+                        ? "{$maintenanceRequest->unit->name} · {$maintenanceRequest->unit->property?->name}"
+                        : null,
+                    'url' => route('maintenance.show', $maintenanceRequest),
+                ];
+            }
+        }
+
+        if ($user->can('documents.view')) {
+            $documents = Document::query()
+                ->where(fn ($query) => $query->where('title', 'like', "%{$q}%")
+                    ->orWhere('code', 'like', "%{$q}%"))
+                ->limit($limit)
+                ->get();
+
+            foreach ($documents as $document) {
+                $results[] = [
+                    'type' => 'document',
+                    'id' => $document->id,
+                    'title' => $document->title,
+                    'subtitle' => $document->code,
+                    'url' => route('documents.index', ['search' => $document->title]),
                 ];
             }
         }

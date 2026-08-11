@@ -12,6 +12,7 @@ export type ReportSummary = {
 };
 
 export type ReportPropertyRow = {
+    property_id: number;
     property_name: string;
     rent_collected: string;
     other_income: string;

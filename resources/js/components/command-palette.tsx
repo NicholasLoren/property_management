@@ -1,47 +1,13 @@
 import { Link, usePage } from '@inertiajs/react';
-import {
-    Building2,
-    DoorOpen,
-    IdCard,
-    KeyRound,
-    Loader2,
-    Plus,
-    Search,
-    Users as UsersIcon,
-} from 'lucide-react';
+import { IdCard, Loader2, Plus, Search } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import type { ComponentType } from 'react';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
+import type { SearchResult } from '@/lib/search-results';
+import {
+    SEARCH_SECTION_META,
+    SEARCH_SECTION_ORDER,
+} from '@/lib/search-results';
 import users from '@/routes/users';
-
-type SearchResultType = 'property' | 'unit' | 'tenant' | 'landlord' | 'user';
-
-type SearchResult = {
-    type: SearchResultType;
-    id: number;
-    title: string;
-    subtitle: string | null;
-    url: string;
-};
-
-const SECTION_META: Record<
-    SearchResultType,
-    { label: string; icon: ComponentType<{ className?: string }> }
-> = {
-    property: { label: 'Properties', icon: Building2 },
-    unit: { label: 'Units', icon: DoorOpen },
-    tenant: { label: 'Tenants', icon: UsersIcon },
-    landlord: { label: 'Landlords', icon: KeyRound },
-    user: { label: 'Users', icon: IdCard },
-};
-
-const SECTION_ORDER: SearchResultType[] = [
-    'property',
-    'unit',
-    'tenant',
-    'landlord',
-    'user',
-];
 
 export function CommandPalette({
     canManageUsers,
@@ -232,7 +198,7 @@ export function CommandPalette({
                         )}
 
                         {hasQuery &&
-                            SECTION_ORDER.map((type) => {
+                            SEARCH_SECTION_ORDER.map((type) => {
                                 const items = results.filter(
                                     (result) => result.type === type,
                                 );
@@ -242,7 +208,7 @@ export function CommandPalette({
                                 }
 
                                 const { label, icon: Icon } =
-                                    SECTION_META[type];
+                                    SEARCH_SECTION_META[type];
 
                                 return (
                                     <div key={type}>

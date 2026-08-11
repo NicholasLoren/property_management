@@ -62,6 +62,7 @@ class FinancialsController extends Controller
                 'maintenance_completed_cost' => (string) $rows->sum('maintenance_completed_cost_raw'),
             ],
             'properties_breakdown' => $rows->map(fn (array $row) => [
+                'property_id' => $row['property_id'],
                 'property_name' => $row['property_name'],
                 'rent_collected' => $row['rent_collected'],
                 'other_income' => $row['other_income'],
@@ -171,6 +172,7 @@ class FinancialsController extends Controller
         $netIncome = ($rentCollected + $otherIncome) - $totalExpense;
 
         return [
+            'property_id' => $property->id,
             'property_name' => $property->name,
             'rent_collected' => (string) $rentCollected,
             'rent_collected_raw' => $rentCollected,
