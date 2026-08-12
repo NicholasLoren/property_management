@@ -1,0 +1,1 @@
+import{i as e,t}from"./jsx-runtime-Cx0BB4qO.js";import{n}from"./compiler-runtime-B9WRonnt.js";var r=e(n(),1);t();var i=Object.defineProperty,a=(e,t)=>i(e,`name`,{value:t,configurable:!0}),o=r.createContext(void 0);function s(e){let t=r.useContext(o);return e||t||`ltr`}a(s,`useDirection`);export{s as t};
