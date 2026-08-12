@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Tenants;
 
+use App\Rules\Phone;
 use App\Support\UploadLimits;
 use Illuminate\Foundation\Http\FormRequest;
 
@@ -20,7 +21,7 @@ class StoreTenantRequest extends FormRequest
         return [
             'name' => ['required', 'string', 'max:255'],
             'email' => ['nullable', 'email', 'max:255'],
-            'phone' => ['nullable', 'string', 'max:50'],
+            'phone' => ['nullable', 'string', 'max:32', new Phone],
             'id_number' => ['nullable', 'string', 'max:255'],
             'address' => ['nullable', 'string', 'max:255'],
             'notes' => ['nullable', 'string', 'max:5000'],

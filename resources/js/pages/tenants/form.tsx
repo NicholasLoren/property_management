@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RequiredAsterisk } from '@/components/ui/required-asterisk';
 import { Spinner } from '@/components/ui/spinner';
+import { Telephone } from '@/components/ui/telephone';
 import { Textarea } from '@/components/ui/textarea';
 import { useInertiaZodForm } from '@/hooks/use-inertia-zod-form';
 import tenants from '@/routes/tenants';
@@ -148,11 +149,10 @@ export default function TenantForm({ tenant }: PageProps) {
 
                     <div className="grid gap-1.5">
                         <Label htmlFor="phone">Phone</Label>
-                        <Input
+                        <Telephone
                             id="phone"
-                            value={data.phone ?? ''}
-                            onChange={(e) => setField('phone', e.target.value)}
-                            placeholder="e.g. +256 700 000000"
+                            value={data.phone}
+                            onChange={(value) => setField('phone', value)}
                         />
                         <InputError message={errors.phone} />
                     </div>

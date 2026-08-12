@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { phoneField, requiredPhoneField } from '@/schemas/phone';
 
 /**
  * Each schema mirrors its app/Http/Requests/Settings/Update*SettingsRequest.php
@@ -18,7 +19,7 @@ export const generalSettingsSchema = z.object({
         .email('Enter a valid email address.')
         .max(255),
     address: z.string().trim().max(500).optional(),
-    phone: z.string().trim().max(32).optional(),
+    phone: phoneField,
     default_currency: z
         .string()
         .trim()
@@ -69,7 +70,7 @@ export const billingSettingsSchema = z.object({
 });
 
 export const testSmsSchema = z.object({
-    phone: z.string().trim().min(1, 'Phone number is required.').max(20),
+    phone: requiredPhoneField,
 });
 
 const codePrefixField = z

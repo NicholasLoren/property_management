@@ -18,6 +18,7 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { Spinner } from '@/components/ui/spinner';
+import { Telephone } from '@/components/ui/telephone';
 import { Textarea } from '@/components/ui/textarea';
 import { useInertiaZodForm } from '@/hooks/use-inertia-zod-form';
 import users from '@/routes/users';
@@ -329,16 +330,12 @@ export default function UserForm({
                                         (for SMS rent reminders)
                                     </span>
                                 </Label>
-                                <Input
+                                <Telephone
                                     id="landlord_phone"
-                                    value={data.landlord_phone ?? ''}
-                                    onChange={(e) =>
-                                        setField(
-                                            'landlord_phone',
-                                            e.target.value,
-                                        )
+                                    value={data.landlord_phone}
+                                    onChange={(value) =>
+                                        setField('landlord_phone', value)
                                     }
-                                    placeholder="e.g. +256700000000"
                                 />
                                 <InputError message={errors.landlord_phone} />
                             </div>

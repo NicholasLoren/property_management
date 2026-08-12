@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Settings;
 
+use App\Rules\Phone;
 use Illuminate\Foundation\Http\FormRequest;
 
 class TestSmsRequest extends FormRequest
@@ -17,7 +18,7 @@ class TestSmsRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'phone' => ['required', 'string', 'max:20'],
+            'phone' => ['required', 'string', 'max:32', new Phone],
         ];
     }
 }

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { phoneField } from '@/schemas/phone';
 
 /**
  * Mirrors app/Http/Requests/Tenants/{Store,Update}TenantRequest.php.
@@ -13,7 +14,7 @@ export const tenantSchema = z.object({
         .optional()
         .nullable()
         .or(z.literal('')),
-    phone: z.string().max(50).optional().nullable(),
+    phone: phoneField,
     id_number: z.string().max(255).optional().nullable(),
     address: z.string().max(255).optional().nullable(),
     notes: z.string().max(5000).optional().nullable(),

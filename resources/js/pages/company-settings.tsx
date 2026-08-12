@@ -28,6 +28,7 @@ import {
 } from '@/components/ui/select';
 import { Spinner } from '@/components/ui/spinner';
 import { Switch } from '@/components/ui/switch';
+import { Telephone } from '@/components/ui/telephone';
 import { useInertiaZodForm } from '@/hooks/use-inertia-zod-form';
 import { cn } from '@/lib/utils';
 import companySettings from '@/routes/company-settings';
@@ -257,12 +258,10 @@ function GeneralSection({
                     </div>
                     <div className="grid gap-1.5">
                         <Label htmlFor="phone">Contact phone</Label>
-                        <Input
+                        <Telephone
                             id="phone"
-                            type="tel"
                             value={data.phone}
-                            onChange={(e) => setField('phone', e.target.value)}
-                            placeholder="+2567xxxxxxxx"
+                            onChange={(value) => setField('phone', value)}
                         />
                         <InputError message={errors.phone} />
                     </div>
@@ -650,13 +649,12 @@ function SmsSection({ sms }: { sms: PageProps['sms'] }) {
                     <div className="flex items-end gap-2.5">
                         <div className="grid flex-1 gap-1.5">
                             <Label htmlFor="test_phone">Phone number</Label>
-                            <Input
+                            <Telephone
                                 id="test_phone"
                                 value={testData.phone}
-                                onChange={(e) =>
-                                    setTestField('phone', e.target.value)
+                                onChange={(value) =>
+                                    setTestField('phone', value)
                                 }
-                                placeholder="+2567xxxxxxxx"
                             />
                             <InputError message={testErrors.phone} />
                         </div>
