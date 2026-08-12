@@ -1,6 +1,5 @@
 import { Link, usePage } from '@inertiajs/react';
 import {
-    Bell,
     Download,
     Menu,
     Moon,
@@ -8,6 +7,7 @@ import {
     Sun,
 } from 'lucide-react';
 import { CommandPalette } from '@/components/command-palette';
+import { NotificationsMenu } from '@/components/notifications-menu';
 import { Button } from '@/components/ui/button';
 import {
     DropdownMenu,
@@ -20,7 +20,6 @@ import { useAppearance } from '@/hooks/use-appearance';
 import { usePermissions } from '@/hooks/use-permissions';
 import { usePwaInstall } from '@/hooks/use-pwa-install';
 import companySettings from '@/routes/company-settings';
-import notifications from '@/routes/notifications';
 import { edit as editProfile } from '@/routes/profile';
 
 export function AppTopbar({
@@ -28,7 +27,7 @@ export function AppTopbar({
 }: {
     onOpenMobileNav?: () => void;
 }) {
-    const { auth, unreadNotificationsCount } = usePage().props;
+    const { auth, unreadNotificationsCount, currency } = usePage().props;
     const { can } = usePermissions();
     const { resolvedAppearance, updateAppearance } = useAppearance();
     const isDark = resolvedAppearance === 'dark';
@@ -79,17 +78,10 @@ export function AppTopbar({
                         <Moon className="size-[15px]" />
                     )}
                 </button>
-                <Link
-                    href={notifications.index()}
-                    aria-label="Notifications"
-                    title="Notifications"
-                    className="relative flex size-[30px] items-center justify-center rounded-[6px] text-text-secondary hover:bg-secondary hover:text-foreground"
-                >
-                    <Bell className="size-[15px]" />
-                    {unreadNotificationsCount > 0 && (
-                        <span className="absolute top-1.5 right-1.5 size-1.5 rounded-full border-[1.5px] border-surface bg-destructive" />
-                    )}
-                </Link>
+                <NotificationsMenu
+                    unreadCount={unreadNotificationsCount}
+                    currency={currency}
+                />
                 {auth.user && (
                     <Link
                         href={

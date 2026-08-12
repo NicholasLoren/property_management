@@ -143,7 +143,21 @@ class ExpenseController extends Controller
         return to_route('expenses.index');
     }
 
-    public function show(Transaction $expense): JsonResponse
+    public function show(Transaction $expense): Response
+    {
+        abort_unless($expense->type === TransactionType::Expense, 404);
+        $expense->load(['property', 'category', 'media', 'createdBy', 'maintenanceRequest']);
+
+        return Inertia::render('expenses/show', [
+            'expense' => $this->transformForShow($expense),
+        ]);
+    }
+
+    /**
+     * A JSON payload of the same shape as show() — used by the index
+     * table's quick-view drawer, which fetches without a full navigation.
+     */
+    public function preview(Transaction $expense): JsonResponse
     {
         abort_unless($expense->type === TransactionType::Expense, 404);
         $expense->load(['property', 'category', 'media', 'createdBy', 'maintenanceRequest']);

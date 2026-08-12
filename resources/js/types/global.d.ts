@@ -27,6 +27,7 @@ declare module '@inertiajs/core' {
             limits: {
                 photoMaxMb: number;
                 documentMaxMb: number;
+                postMaxMb: number;
             };
             [key: string]: unknown;
         };

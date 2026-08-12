@@ -1,5 +1,5 @@
 import { ZoomIn, ZoomOut } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Cropper from 'react-easy-crop';
 import type { Area } from 'react-easy-crop';
 import { Button } from '@/components/ui/button';
@@ -20,6 +20,8 @@ type ImageCropDialogProps = {
     outputSize: number;
     onCropped: (file: File) => void;
     onCancel: () => void;
+    /** Called when the crop/export step fails (e.g. a corrupt image). */
+    onError?: () => void;
 };
 
 const MIN_ZOOM = 1;
@@ -30,6 +32,7 @@ export function ImageCropDialog({
     outputSize,
     onCropped,
     onCancel,
+    onError,
 }: ImageCropDialogProps) {
     const [imageUrl, setImageUrl] = useState<string | null>(null);
     const [crop, setCrop] = useState({ x: 0, y: 0 });
@@ -39,19 +42,51 @@ export function ImageCropDialog({
     );
     const [processing, setProcessing] = useState(false);
 
+    // Kept as refs (rather than effect deps) so a re-render with fresh
+    // callback identities doesn't re-run the load probe below.
+    const onErrorRef = useRef(onError);
+    onErrorRef.current = onError;
+    const onCancelRef = useRef(onCancel);
+    onCancelRef.current = onCancel;
+
     useEffect(() => {
         if (!file) {
             setImageUrl(null);
             return;
         }
 
+        let cancelled = false;
         const url = URL.createObjectURL(file);
-        setImageUrl(url);
-        setCrop({ x: 0, y: 0 });
-        setZoom(1);
-        setCroppedAreaPixels(null);
 
-        return () => URL.revokeObjectURL(url);
+        // Probe the file with a real <img> load before handing it to the
+        // cropper — an undecodable file would otherwise leave the dialog
+        // stuck on a blank preview with the "Use this crop" button
+        // permanently disabled and no explanation why.
+        const probe = new Image();
+        probe.onload = () => {
+            if (cancelled) {
+                return;
+            }
+
+            setImageUrl(url);
+            setCrop({ x: 0, y: 0 });
+            setZoom(1);
+            setCroppedAreaPixels(null);
+        };
+        probe.onerror = () => {
+            if (cancelled) {
+                return;
+            }
+
+            onErrorRef.current?.();
+            onCancelRef.current();
+        };
+        probe.src = url;
+
+        return () => {
+            cancelled = true;
+            URL.revokeObjectURL(url);
+        };
     }, [file]);
 
     const handleCropComplete = useCallback((_area: Area, areaPixels: Area) => {
@@ -73,9 +108,14 @@ export function ImageCropDialog({
                 file.name,
             );
             onCropped(cropped);
-        } finally {
+        } catch {
             setProcessing(false);
+            onError?.();
+            onCancel();
+            return;
         }
+
+        setProcessing(false);
     }
 
     return (

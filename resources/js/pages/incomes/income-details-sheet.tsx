@@ -43,7 +43,7 @@ export function IncomeDetailsSheet({
 
         let cancelled = false;
 
-        fetch(incomes.show(incomeId).url, {
+        fetch(incomes.preview(incomeId).url, {
             headers: { Accept: 'application/json' },
         })
             .then((response) => response.json())

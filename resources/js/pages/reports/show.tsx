@@ -1,18 +1,27 @@
 import { Head, router, usePage } from '@inertiajs/react';
-import { ArrowUpDown, Download, FileSpreadsheet } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import type { ColumnDef } from '@tanstack/react-table';
+import { Download, FileSpreadsheet, Search } from 'lucide-react';
+import { useMemo, useRef, useState } from 'react';
 import { Breadcrumbs } from '@/components/breadcrumbs';
+import { DataTable } from '@/components/data-table/data-table';
+import type { DataTablePaginationMeta } from '@/components/data-table/data-table-pagination';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { formatCurrency } from '@/lib/currency';
 import { formatDate } from '@/lib/datetime';
+import { cn } from '@/lib/utils';
 import reports from '@/routes/reports';
 
 type ColumnType = 'text' | 'currency' | 'date' | 'number';
 
-type Column = { key: string; label: string; type: ColumnType };
+type Column = {
+    key: string;
+    label: string;
+    type: ColumnType;
+    sortable: boolean;
+};
 
 type SummaryItem = { label: string; value: string; type: ColumnType };
 
@@ -25,6 +34,10 @@ type Filters = {
     to: string | null;
     property_id: string | null;
     unit_id: string | null;
+    search: string;
+    sort: string;
+    dir: 'asc' | 'desc';
+    per_page: number;
 };
 
 type PageProps = {
@@ -38,6 +51,7 @@ type PageProps = {
     columns: Column[];
     rows: Record<string, string>[];
     summary: SummaryItem[] | null;
+    pagination: DataTablePaginationMeta | null;
 };
 
 function formatValue(
@@ -76,13 +90,12 @@ export default function ReportShow({
     columns,
     rows,
     summary,
+    pagination,
 }: PageProps) {
     const { currency, timezone } = usePage().props;
-    const [sort, setSort] = useState<{
-        key: string;
-        dir: 'asc' | 'desc';
-    } | null>(null);
     const [scopeLoading, setScopeLoading] = useState(false);
+    const [search, setSearch] = useState(filters.search);
+    const searchDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const visibleUnits = filters.property_id
         ? units.filter((unit) => unit.property_id === filters.property_id)
@@ -94,7 +107,7 @@ export default function ReportShow({
     ];
     const unitOptions = [{ value: 'all', label: 'All units' }, ...visibleUnits];
 
-    function reload(partial: Partial<Filters>) {
+    function reload(partial: Partial<Filters & { page: number }>) {
         const next = { ...filters, ...partial };
 
         router.get(
@@ -104,6 +117,11 @@ export default function ReportShow({
                 to: dateFilter ? next.to : undefined,
                 property_id: next.property_id || undefined,
                 unit_id: next.unit_id || undefined,
+                search: next.search || undefined,
+                sort: next.sort || undefined,
+                dir: next.dir,
+                per_page: next.per_page,
+                page: 'page' in partial ? partial.page : 1,
             },
             {
                 preserveState: true,
@@ -113,6 +131,18 @@ export default function ReportShow({
                 onFinish: () => setScopeLoading(false),
             },
         );
+    }
+
+    function onSearchChange(value: string) {
+        setSearch(value);
+
+        if (searchDebounce.current) {
+            clearTimeout(searchDebounce.current);
+        }
+
+        searchDebounce.current = setTimeout(() => {
+            reload({ search: value, page: 1 });
+        }, 300);
     }
 
     function exportUrl(format: 'pdf' | 'excel') {
@@ -129,33 +159,35 @@ export default function ReportShow({
         ).url;
     }
 
-    function toggleSort(key: string) {
-        setSort((prev) =>
-            prev?.key === key
-                ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' }
-                : { key, dir: 'asc' },
-        );
-    }
-
-    const sortedRows = useMemo(() => {
-        if (!sort) {
-            return rows;
-        }
-
-        const column = columns.find((c) => c.key === sort.key);
-        const isNumeric =
-            column?.type === 'currency' || column?.type === 'number';
-
-        return [...rows].sort((a, b) => {
-            const aVal = a[sort.key] ?? '';
-            const bVal = b[sort.key] ?? '';
-            const comparison = isNumeric
-                ? Number(aVal) - Number(bVal)
-                : aVal.localeCompare(bVal);
-
-            return sort.dir === 'asc' ? comparison : -comparison;
-        });
-    }, [rows, sort, columns]);
+    const reportColumns = useMemo<ColumnDef<Record<string, string>>[]>(
+        () =>
+            columns.map((column) => ({
+                id: column.key,
+                accessorKey: column.key,
+                header: column.label,
+                meta: {
+                    label: column.label,
+                    sortKey: column.sortable ? column.key : undefined,
+                },
+                cell: ({ row }) => (
+                    <span
+                        className={cn(
+                            (column.type === 'currency' ||
+                                column.type === 'number') &&
+                                'tabular-nums',
+                        )}
+                    >
+                        {formatValue(
+                            row.original[column.key],
+                            column.type,
+                            currency,
+                            timezone,
+                        )}
+                    </span>
+                ),
+            })),
+        [columns, currency, timezone],
+    );
 
     return (
         <>
@@ -207,7 +239,7 @@ export default function ReportShow({
                                 type="date"
                                 value={filters.from ?? ''}
                                 onChange={(e) =>
-                                    reload({ from: e.target.value })
+                                    reload({ from: e.target.value, page: 1 })
                                 }
                                 disabled={scopeLoading}
                                 className="w-[160px]"
@@ -221,7 +253,9 @@ export default function ReportShow({
                                 id="to"
                                 type="date"
                                 value={filters.to ?? ''}
-                                onChange={(e) => reload({ to: e.target.value })}
+                                onChange={(e) =>
+                                    reload({ to: e.target.value, page: 1 })
+                                }
                                 disabled={scopeLoading}
                                 className="w-[160px]"
                             />
@@ -240,6 +274,7 @@ export default function ReportShow({
                                 property_id:
                                     !value || value === 'all' ? null : value,
                                 unit_id: null,
+                                page: 1,
                             })
                         }
                         options={propertyOptions}
@@ -260,6 +295,7 @@ export default function ReportShow({
                             reload({
                                 unit_id:
                                     !value || value === 'all' ? null : value,
+                                page: 1,
                             })
                         }
                         options={unitOptions}
@@ -294,59 +330,46 @@ export default function ReportShow({
                 </div>
             )}
 
-            <div className="overflow-x-auto rounded-[14px] border border-border-soft bg-card shadow-sm">
-                <table className="w-full text-sm">
-                    <thead>
-                        <tr className="border-b border-border-soft text-left text-xs font-semibold text-text-tertiary uppercase">
-                            {columns.map((column) => (
-                                <th key={column.key} className="px-4 py-3">
-                                    <button
-                                        type="button"
-                                        onClick={() => toggleSort(column.key)}
-                                        className="inline-flex items-center gap-1 hover:text-foreground"
-                                    >
-                                        {column.label}
-                                        <ArrowUpDown
-                                            className={`size-3 ${sort?.key === column.key ? 'text-accent-strong' : 'opacity-40'}`}
-                                        />
-                                    </button>
-                                </th>
-                            ))}
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border-soft">
-                        {sortedRows.length === 0 ? (
-                            <tr>
-                                <td
-                                    colSpan={columns.length}
-                                    className="px-4 py-8 text-center text-text-tertiary"
-                                >
-                                    Nothing to show for this report yet.
-                                </td>
-                            </tr>
-                        ) : (
-                            sortedRows.map((row, index) => (
-                                // Rows have no stable id — they're a computed report projection, not a persisted resource.
-                                <tr key={index}>
-                                    {columns.map((column) => (
-                                        <td
-                                            key={column.key}
-                                            className={`px-4 py-3 ${column.type === 'currency' || column.type === 'number' ? 'tabular-nums' : ''}`}
-                                        >
-                                            {formatValue(
-                                                row[column.key],
-                                                column.type,
-                                                currency,
-                                                timezone,
-                                            )}
-                                        </td>
-                                    ))}
-                                </tr>
-                            ))
-                        )}
-                    </tbody>
-                </table>
-            </div>
+            <DataTable
+                tableId={`report-${type}`}
+                columns={reportColumns}
+                data={rows}
+                pagination={
+                    pagination ?? {
+                        current_page: 1,
+                        last_page: 1,
+                        per_page: filters.per_page,
+                        total: 0,
+                        from: null,
+                        to: null,
+                    }
+                }
+                onPageChange={(page) => reload({ page })}
+                onPerPageChange={(per_page) => reload({ per_page, page: 1 })}
+                sort={{ column: filters.sort, dir: filters.dir }}
+                onSortChange={(column, dir) =>
+                    reload({ sort: column, dir, page: 1 })
+                }
+                onRefresh={() => reload({ page: pagination?.current_page })}
+                isRefreshing={scopeLoading}
+                isFiltered={search !== ''}
+                emptyState={{
+                    title: 'Nothing to show yet',
+                    description:
+                        'This report has no data for the current filters.',
+                }}
+                toolbar={
+                    <div className="relative w-[220px]">
+                        <Search className="pointer-events-none absolute top-1/2 left-[11px] size-[15px] -translate-y-1/2 text-text-tertiary" />
+                        <Input
+                            value={search}
+                            onChange={(e) => onSearchChange(e.target.value)}
+                            placeholder="Search this report…"
+                            className="pl-9"
+                        />
+                    </div>
+                }
+            />
         </>
     );
 }

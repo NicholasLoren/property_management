@@ -93,7 +93,7 @@ export function PhotoGalleryInput({
                 {existing.map((photo) => (
                     <div
                         key={photo.id}
-                        className="group relative aspect-square overflow-hidden rounded-lg border border-border-soft bg-secondary"
+                        className="relative aspect-square overflow-hidden rounded-lg border border-border-soft bg-secondary"
                     >
                         <img
                             src={photo.url}
@@ -104,7 +104,7 @@ export function PhotoGalleryInput({
                             type="button"
                             disabled={disabled}
                             onClick={() => onRemoveExisting?.(photo.id)}
-                            className="absolute top-1 right-1 flex size-6 items-center justify-center rounded-full bg-black/60 text-white opacity-0 transition-opacity group-hover:opacity-100"
+                            className="absolute top-1 right-1 flex size-6 items-center justify-center rounded-full bg-black/60 text-white transition-colors hover:bg-black/80"
                         >
                             <X className="size-3.5" />
                         </button>
@@ -114,14 +114,14 @@ export function PhotoGalleryInput({
                 {files.map((file, index) => (
                     <div
                         key={`${file.name}-${index}`}
-                        className="group relative aspect-square overflow-hidden rounded-lg border border-border-soft bg-secondary"
+                        className="relative aspect-square overflow-hidden rounded-lg border border-border-soft bg-secondary"
                     >
                         <NewFileThumb file={file} />
                         <button
                             type="button"
                             disabled={disabled}
                             onClick={() => removeNewFile(index)}
-                            className="absolute top-1 right-1 flex size-6 items-center justify-center rounded-full bg-black/60 text-white opacity-0 transition-opacity group-hover:opacity-100"
+                            className="absolute top-1 right-1 flex size-6 items-center justify-center rounded-full bg-black/60 text-white transition-colors hover:bg-black/80"
                         >
                             <X className="size-3.5" />
                         </button>

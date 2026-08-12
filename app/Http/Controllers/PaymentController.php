@@ -167,6 +167,15 @@ class PaymentController extends Controller
         return to_route('payments.index');
     }
 
+    public function show(Payment $payment): Response
+    {
+        $payment->load(['lease.unit.property', 'lease.tenants', 'tenant', 'paymentSchedule', 'createdBy', 'media']);
+
+        return Inertia::render('payments/show', [
+            'payment' => $this->transformForShow($payment),
+        ]);
+    }
+
     public function edit(Payment $payment, GeneralSettings $settings): Response
     {
         $payment->load(['lease.unit.property', 'lease.tenants', 'media']);
@@ -262,6 +271,40 @@ class PaymentController extends Controller
         }
 
         return $data;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function transformForShow(Payment $payment): array
+    {
+        $receipt = $payment->getFirstMedia('receipt');
+
+        return [
+            'id' => $payment->id,
+            'reference' => $payment->reference,
+            'amount' => (string) $payment->amount,
+            'payment_date' => $payment->payment_date->toDateString(),
+            'method' => $payment->method->value,
+            'method_label' => $payment->method->label(),
+            'status' => $payment->status->value,
+            'status_label' => $payment->status->label(),
+            'notes' => $payment->notes,
+            'lease_id' => $payment->lease_id,
+            'unit_id' => $payment->lease?->unit_id,
+            'unit_name' => $payment->lease?->unit?->name,
+            'property_id' => $payment->lease?->unit?->property_id,
+            'property_name' => $payment->lease?->unit?->property?->name,
+            'tenant_id' => $payment->tenant_id,
+            'tenant_name' => $payment->tenant?->name,
+            'lease_tenant_names' => $payment->lease?->tenants->pluck('name')->join(', '),
+            'schedule_period' => $payment->paymentSchedule !== null
+                ? "{$payment->paymentSchedule->period_start->toDateString()} – {$payment->paymentSchedule->period_end->toDateString()}"
+                : null,
+            'created_by_name' => $payment->createdBy?->name,
+            'created_at' => $payment->created_at?->toIso8601String(),
+            'receipt' => $receipt ? ['name' => $receipt->file_name, 'url' => $receipt->getUrl()] : null,
+        ];
     }
 
     /**

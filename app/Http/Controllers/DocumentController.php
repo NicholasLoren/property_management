@@ -147,6 +147,15 @@ class DocumentController extends Controller
         return to_route('documents.index');
     }
 
+    public function show(Document $document): Response
+    {
+        $document->load(['documentable', 'category', 'uploadedBy', 'media']);
+
+        return Inertia::render('documents/show', [
+            'document' => $this->transformForShow($document),
+        ]);
+    }
+
     public function edit(Document $document): Response
     {
         $document->load(['media', 'documentable']);
@@ -250,17 +259,49 @@ class DocumentController extends Controller
         ];
     }
 
+    /**
+     * @return array<string, mixed>
+     */
+    private function transformForShow(Document $document): array
+    {
+        $file = $document->getFirstMedia('file');
+
+        return [
+            'id' => $document->id,
+            'code' => $document->code,
+            'title' => $document->title,
+            'notes' => $document->notes,
+            'category_label' => $document->category?->name,
+            'documentable_type' => $document->documentable_type,
+            'documentable_label' => $this->documentableLabel($document),
+            'documentable_url' => $this->documentableUrl($document),
+            'uploaded_by_name' => $document->uploadedBy?->name,
+            'file' => $file ? ['name' => $file->file_name, 'url' => $file->getUrl(), 'mime_type' => $file->mime_type] : null,
+            'created_at' => $document->created_at?->toIso8601String(),
+        ];
+    }
+
     private function documentableLabel(Document $document): ?string
     {
         $model = $document->documentable;
 
-        if ($model === null) {
-            return null;
-        }
-
-        return match ($document->documentable_type) {
-            'lease' => "Lease #{$model->id}",
+        return match (true) {
+            $model instanceof Lease => "Lease #{$model->id}",
+            $model === null => null,
             default => $model->name ?? null,
+        };
+    }
+
+    private function documentableUrl(Document $document): ?string
+    {
+        $model = $document->documentable;
+
+        return match (true) {
+            $model instanceof Property => route('properties.show', $model),
+            $model instanceof Unit => route('units.show', ['property' => $model->property_id, 'unit' => $model]),
+            $model instanceof Tenant => route('tenants.show', $model),
+            $model instanceof Lease => route('leases.show', $model),
+            default => null,
         };
     }
 

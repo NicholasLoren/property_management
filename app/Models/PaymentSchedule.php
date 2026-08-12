@@ -60,8 +60,8 @@ class PaymentSchedule extends Model
     public function scopeOverdue(Builder $query): Builder
     {
         return $query
-            ->whereIn('status', [PaymentScheduleStatus::Pending->value, PaymentScheduleStatus::Partial->value])
-            ->whereDate('period_start', '<', now()->toDateString());
+            ->whereIn('payment_schedules.status', [PaymentScheduleStatus::Pending->value, PaymentScheduleStatus::Partial->value])
+            ->whereDate('payment_schedules.period_start', '<', now()->toDateString());
     }
 
     /**

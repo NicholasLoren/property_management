@@ -143,7 +143,21 @@ class IncomeController extends Controller
         return to_route('incomes.index');
     }
 
-    public function show(Transaction $income): JsonResponse
+    public function show(Transaction $income): Response
+    {
+        abort_unless($income->type === TransactionType::Income, 404);
+        $income->load(['property', 'category', 'media', 'createdBy']);
+
+        return Inertia::render('incomes/show', [
+            'income' => $this->transformForShow($income),
+        ]);
+    }
+
+    /**
+     * A JSON payload of the same shape as show() — used by the index
+     * table's quick-view drawer, which fetches without a full navigation.
+     */
+    public function preview(Transaction $income): JsonResponse
     {
         abort_unless($income->type === TransactionType::Income, 404);
         $income->load(['property', 'category', 'media', 'createdBy']);

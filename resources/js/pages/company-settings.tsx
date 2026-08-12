@@ -326,9 +326,11 @@ function GeneralSection({
 const APP_ICON_OUTPUT_SIZE = 512;
 
 function BrandingSection({ branding }: { branding: PageProps['branding'] }) {
+    const { limits } = usePage().props;
     const [logoRemoved, setLogoRemoved] = useState(false);
     const [appIconRemoved, setAppIconRemoved] = useState(false);
     const [appIconToCrop, setAppIconToCrop] = useState<File | null>(null);
+    const [cropError, setCropError] = useState<string | undefined>();
     const { data, setField, errors, processing, submit } = useInertiaZodForm(
         brandingSettingsSchema,
         {
@@ -358,7 +360,9 @@ function BrandingSection({ branding }: { branding: PageProps['branding'] }) {
                 description="Used on invoices, receipts, and exported reports."
             >
                 <FileDropzone
+                    id="logo"
                     accept="image/jpeg,image/png,image/webp,image/svg+xml"
+                    maxSizeMb={limits.photoMaxMb}
                     value={data.logo ?? null}
                     onChange={(file) => {
                         setField('logo', file);
@@ -378,9 +382,13 @@ function BrandingSection({ branding }: { branding: PageProps['branding'] }) {
                 description="Used for the browser favicon, and the icon shown when the app is installed to a phone or desktop. Any image works — you’ll crop it to a square next."
             >
                 <FileDropzone
+                    id="app_icon"
                     accept="image/jpeg,image/png,image/webp"
+                    maxSizeMb={limits.photoMaxMb}
                     value={data.app_icon ?? null}
                     onChange={(file) => {
+                        setCropError(undefined);
+
                         if (file) {
                             setAppIconToCrop(file);
 
@@ -394,7 +402,7 @@ function BrandingSection({ branding }: { branding: PageProps['branding'] }) {
                         setAppIconRemoved(true);
                         setField('app_icon_remove', true);
                     }}
-                    error={errors.app_icon}
+                    error={errors.app_icon ?? cropError}
                 />
                 <ImageCropDialog
                     file={appIconToCrop}
@@ -405,6 +413,11 @@ function BrandingSection({ branding }: { branding: PageProps['branding'] }) {
                         setAppIconToCrop(null);
                     }}
                     onCancel={() => setAppIconToCrop(null)}
+                    onError={() =>
+                        setCropError(
+                            'Could not process that image — try a different file.',
+                        )
+                    }
                 />
             </SettingsCard>
 

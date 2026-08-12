@@ -7,6 +7,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('expenses', [ExpenseController::class, 'index'])->middleware('can:expenses.view')->name('expenses.index');
     Route::get('expenses/create', [ExpenseController::class, 'create'])->middleware('can:expenses.add')->name('expenses.create');
     Route::get('expenses/{expense}', [ExpenseController::class, 'show'])->middleware('can:expenses.view')->name('expenses.show');
+    Route::get('expenses/{expense}/preview', [ExpenseController::class, 'preview'])->middleware('can:expenses.view')->name('expenses.preview');
     Route::post('expenses', [ExpenseController::class, 'store'])->middleware('can:expenses.add')->name('expenses.store');
     Route::get('expenses/{expense}/edit', [ExpenseController::class, 'edit'])->middleware('can:expenses.edit')->name('expenses.edit');
     Route::put('expenses/{expense}', [ExpenseController::class, 'update'])->middleware('can:expenses.edit')->name('expenses.update');

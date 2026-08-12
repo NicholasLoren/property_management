@@ -37,6 +37,24 @@ class UploadLimits
     }
 
     /**
+     * The largest request body PHP will accept, in megabytes. Unlike
+     * photoMaxMb()/documentMaxMb(), this isn't clamped to a 5 GB business
+     * ceiling — it's the true php.ini limit, used by forms that can submit
+     * several files at once (e.g. a photo gallery) to warn before a batch
+     * would exceed post_max_size. PHP empties $_POST/$_FILES entirely when
+     * that happens, and Laravel's ValidatePostSize middleware — which
+     * throws on it — runs before the session even starts, so there's no
+     * reliable way to surface a friendly error after the fact; the client
+     * needs to catch this before submitting.
+     */
+    public static function postMaxMb(): float
+    {
+        $postMax = self::parseIniSize((string) ini_get('post_max_size'));
+
+        return round(($postMax > 0 ? $postMax : 8 * 1024 * 1024) / 1024 / 1024, 2);
+    }
+
+    /**
      * The largest single file PHP will accept, in kilobytes, given the
      * runtime's upload_max_filesize and post_max_size.
      */

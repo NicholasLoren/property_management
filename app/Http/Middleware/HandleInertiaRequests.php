@@ -63,6 +63,7 @@ class HandleInertiaRequests extends Middleware
             'limits' => [
                 'photoMaxMb' => UploadLimits::photoMaxMb(),
                 'documentMaxMb' => UploadLimits::documentMaxMb(),
+                'postMaxMb' => UploadLimits::postMaxMb(),
             ],
         ];
     }

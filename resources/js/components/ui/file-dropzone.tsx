@@ -8,6 +8,8 @@ import { cn } from '@/lib/utils';
 export type ExistingFile = { name: string; url: string };
 
 type FileDropzoneProps = {
+    /** Used so validation errors can scroll this field into view. */
+    id?: string;
     /** Comma-separated MIME types, passed straight to the file input. */
     accept?: string;
     maxSizeMb?: number;
@@ -19,6 +21,30 @@ type FileDropzoneProps = {
     error?: string;
     disabled?: boolean;
 };
+
+const MIME_TYPE_LABELS: Record<string, string> = {
+    'image/jpeg': 'JPG',
+    'image/png': 'PNG',
+    'image/webp': 'WEBP',
+    'image/svg+xml': 'SVG',
+    'image/gif': 'GIF',
+    'application/pdf': 'PDF',
+    'application/msword': 'Word',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
+        'Word',
+    'application/vnd.ms-powerpoint': 'PowerPoint',
+    'text/plain': 'TXT',
+    'video/x-msvideo': 'AVI',
+};
+
+/** Turns the `accept` MIME list into a short, human-readable list, e.g. "JPG, PNG, WEBP". */
+function describeAcceptedTypes(accept: string): string {
+    const labels = accept
+        .split(',')
+        .map((type) => MIME_TYPE_LABELS[type.trim()] ?? type.trim());
+
+    return [...new Set(labels)].join(', ');
+}
 
 function isImage(file: File | ExistingFile): boolean {
     if ('type' in file) {
@@ -41,6 +67,7 @@ function formatSize(bytes: number): string {
 }
 
 export function FileDropzone({
+    id,
     accept = 'image/jpeg,image/png,image/webp,application/pdf',
     maxSizeMb = 5,
     value,
@@ -54,6 +81,7 @@ export function FileDropzone({
     const [isDragging, setIsDragging] = useState(false);
     const [rejection, setRejection] = useState<string | null>(null);
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+    const acceptedTypesLabel = describeAcceptedTypes(accept);
 
     useEffect(() => {
         if (!value || !isImage(value)) {
@@ -71,12 +99,16 @@ export function FileDropzone({
         const acceptedTypes = accept.split(',').map((t) => t.trim());
 
         if (!acceptedTypes.includes(file.type)) {
-            setRejection('That file type isn’t supported.');
+            setRejection(
+                `That file type isn’t supported. Accepted: ${acceptedTypesLabel}.`,
+            );
             return;
         }
 
         if (file.size > maxSizeMb * 1024 * 1024) {
-            setRejection(`File is larger than ${maxSizeMb}MB.`);
+            setRejection(
+                `That file is ${formatSize(file.size)} — the limit is ${maxSizeMb}MB.`,
+            );
             return;
         }
 
@@ -107,7 +139,7 @@ export function FileDropzone({
     const shownExisting = !value && existing;
 
     return (
-        <div className="grid grid-cols-1 gap-1.5">
+        <div id={id} className="grid grid-cols-1 gap-1.5">
             {value || shownExisting ? (
                 <div className="flex items-center gap-3 rounded-lg border border-border-soft bg-secondary p-2.5">
                     {previewUrl ? (
@@ -186,7 +218,7 @@ export function FileDropzone({
                         </span>
                     </p>
                     <p className="text-xs text-text-tertiary">
-                        JPG, PNG, WEBP or PDF, up to {maxSizeMb}MB
+                        {acceptedTypesLabel}, up to {maxSizeMb}MB
                     </p>
                 </div>
             )}

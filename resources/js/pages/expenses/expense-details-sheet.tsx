@@ -45,7 +45,7 @@ export function ExpenseDetailsSheet({
 
         let cancelled = false;
 
-        fetch(expenses.show(expenseId).url, {
+        fetch(expenses.preview(expenseId).url, {
             headers: { Accept: 'application/json' },
         })
             .then((response) => response.json())

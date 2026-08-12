@@ -19,10 +19,13 @@ use App\Services\PortfolioMetrics;
 use App\Settings\BrandingSettings;
 use App\Support\Branding;
 use App\Support\ReportCatalog;
+use App\Support\ReportTableParams;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Inertia\Inertia;
@@ -46,6 +49,9 @@ class ReportController extends Controller
         $definition = $this->definition($type);
         [$from, $to] = $this->parseFilters($request);
         [$propertyId, $unitId] = $this->parseScope($request);
+        $table = $this->parseTableParams($request);
+
+        $report = $this->build($type, $from, $to, $propertyId, $unitId, $table);
 
         return Inertia::render('reports/show', [
             'type' => $type,
@@ -57,10 +63,17 @@ class ReportController extends Controller
                 'to' => $definition['date_filter'] ? $to->toDateString() : null,
                 'property_id' => $propertyId !== null ? (string) $propertyId : null,
                 'unit_id' => $unitId !== null ? (string) $unitId : null,
+                'search' => $table->search,
+                'sort' => $report['sort'],
+                'dir' => $report['dir'],
+                'per_page' => $table->perPage,
             ],
             'properties' => $this->propertyOptions(),
             'units' => $this->unitOptions(),
-            ...$this->build($type, $from, $to, $propertyId, $unitId),
+            'columns' => $report['columns'],
+            'rows' => $report['rows'],
+            'summary' => $report['summary'],
+            'pagination' => $report['pagination'],
         ]);
     }
 
@@ -70,7 +83,7 @@ class ReportController extends Controller
         [$from, $to] = $this->parseFilters($request);
         [$propertyId, $unitId] = $this->parseScope($request);
 
-        $report = $this->build($type, $from, $to, $propertyId, $unitId);
+        $report = $this->build($type, $from, $to, $propertyId, $unitId, ReportTableParams::forExport());
         $headings = array_map(fn (array $column) => $column['label'], $report['columns']);
         $keys = array_map(fn (array $column) => $column['key'], $report['columns']);
 
@@ -157,6 +170,117 @@ class ReportController extends Controller
         ];
     }
 
+    private function parseTableParams(Request $request): ReportTableParams
+    {
+        $perPage = (int) $request->integer('per_page', 10);
+        $perPage = in_array($perPage, [10, 25, 50], true) ? $perPage : 10;
+
+        return new ReportTableParams(
+            page: max(1, $request->integer('page', 1)),
+            perPage: $perPage,
+            sort: $request->string('sort')->value(),
+            dir: $request->string('dir', 'asc')->value() === 'desc' ? 'desc' : 'asc',
+            search: $request->string('search')->trim()->value(),
+        );
+    }
+
+    /**
+     * @param  LengthAwarePaginator<int, Model>  $paginator
+     * @return array{current_page: int, last_page: int, per_page: int, total: int, from: int|null, to: int|null}
+     */
+    private function paginationMeta(LengthAwarePaginator $paginator): array
+    {
+        return [
+            'current_page' => $paginator->currentPage(),
+            'last_page' => $paginator->lastPage(),
+            'per_page' => $paginator->perPage(),
+            'total' => $paginator->total(),
+            'from' => $paginator->firstItem(),
+            'to' => $paginator->lastItem(),
+        ];
+    }
+
+    /**
+     * Runs a report's query either fully (export — every matching row, in
+     * the query's default order) or as one page (the on-screen table).
+     *
+     * @param  Builder<*>  $query
+     * @param  callable(mixed): array<string, string>  $mapRow
+     * @return array{0: array<int, array<string, string>>, 1: array<string, mixed>|null}
+     */
+    private function fetchRows(Builder $query, ReportTableParams $table, callable $mapRow): array
+    {
+        if (! $table->isPaginated()) {
+            return [$query->get()->map($mapRow)->all(), null];
+        }
+
+        $paginator = $query->paginate($table->perPage, ['*'], 'page', $table->page);
+
+        return [$paginator->getCollection()->map($mapRow)->all(), $this->paginationMeta($paginator)];
+    }
+
+    /**
+     * Search + sort + paginate an already-fully-fetched row collection —
+     * used by reports whose rows come from merging multiple sources
+     * (income) or are a small computed aggregate (profit-loss), neither of
+     * which maps onto a single paginatable query.
+     *
+     * @param  Collection<int, array<string, string>>  $rows
+     * @param  array<int, string>  $searchableKeys
+     * @param  array<int, string>  $numericKeys
+     * @return array{0: array<int, array<string, string>>, 1: array<string, mixed>|null}
+     */
+    private function searchSortPaginate(
+        Collection $rows,
+        ReportTableParams $table,
+        array $searchableKeys,
+        array $numericKeys = [],
+    ): array {
+        if ($table->search !== '') {
+            $needle = mb_strtolower($table->search);
+            $rows = $rows->filter(function (array $row) use ($searchableKeys, $needle): bool {
+                foreach ($searchableKeys as $key) {
+                    if (str_contains(mb_strtolower((string) ($row[$key] ?? '')), $needle)) {
+                        return true;
+                    }
+                }
+
+                return false;
+            })->values();
+        }
+
+        if ($table->sort !== '') {
+            $rows = $rows->sortBy(
+                fn (array $row) => in_array($table->sort, $numericKeys, true)
+                    ? (float) ($row[$table->sort] ?? 0)
+                    : mb_strtolower((string) ($row[$table->sort] ?? '')),
+                SORT_REGULAR,
+                $table->dir === 'desc',
+            )->values();
+        }
+
+        if (! $table->isPaginated()) {
+            return [$rows->all(), null];
+        }
+
+        $total = $rows->count();
+        $perPage = $table->perPage;
+        $lastPage = max(1, (int) ceil($total / $perPage));
+        $currentPage = min($table->page, $lastPage);
+
+        return [
+            $rows->slice(($currentPage - 1) * $perPage, $perPage)->values()->all(),
+            [
+                'current_page' => $currentPage,
+                'last_page' => $lastPage,
+                'per_page' => $perPage,
+                'total' => $total,
+                'from' => $total === 0 ? null : ($currentPage - 1) * $perPage + 1,
+                'to' => $total === 0 ? null : min($currentPage * $perPage, $total),
+            ],
+        ];
+    }
+
     /**
      * Scopes a query on a model that `belongsTo` Lease (Payment, PaymentSchedule)
      * down to a single unit, or every unit under a single property.
@@ -202,30 +326,30 @@ class ReportController extends Controller
     }
 
     /**
-     * @return array{columns: array<int, array{key: string, label: string, type: string}>, rows: array<int, array<string, string>>, summary: array<int, array{label: string, value: string, type: string}>|null}
+     * @return array{columns: array<int, array{key: string, label: string, type: string, sortable: bool}>, rows: array<int, array<string, string>>, summary: array<int, array{label: string, value: string, type: string}>|null, pagination: array<string, mixed>|null, sort: string, dir: string}
      */
-    private function build(string $type, Carbon $from, Carbon $to, ?int $propertyId, ?int $unitId): array
+    private function build(string $type, Carbon $from, Carbon $to, ?int $propertyId, ?int $unitId, ReportTableParams $table): array
     {
         return match ($type) {
-            'income' => $this->incomeReport($from, $to, $propertyId, $unitId),
-            'expense' => $this->expenseReport($from, $to, $propertyId),
-            'profit-loss' => $this->profitLossReport($from, $to, $propertyId, $unitId),
-            'rent-collection' => $this->rentCollectionReport($from, $to, $propertyId, $unitId),
-            'rent-arrears' => $this->rentArrearsReport($propertyId, $unitId),
-            'advance-payments' => $this->advancePaymentsReport($propertyId, $unitId),
-            'tenant-roster' => $this->tenantRosterReport($propertyId, $unitId),
-            'new-residents' => $this->newResidentsReport($from, $to, $propertyId, $unitId),
-            'expiring-leases' => $this->expiringLeasesReport($propertyId, $unitId),
-            'vacancies' => $this->vacanciesReport($propertyId, $unitId),
-            'deposits' => $this->depositsReport($propertyId, $unitId),
+            'income' => $this->incomeReport($from, $to, $propertyId, $unitId, $table),
+            'expense' => $this->expenseReport($from, $to, $propertyId, $table),
+            'profit-loss' => $this->profitLossReport($from, $to, $propertyId, $unitId, $table),
+            'rent-collection' => $this->rentCollectionReport($from, $to, $propertyId, $unitId, $table),
+            'rent-arrears' => $this->rentArrearsReport($propertyId, $unitId, $table),
+            'advance-payments' => $this->advancePaymentsReport($propertyId, $unitId, $table),
+            'tenant-roster' => $this->tenantRosterReport($propertyId, $unitId, $table),
+            'new-residents' => $this->newResidentsReport($from, $to, $propertyId, $unitId, $table),
+            'expiring-leases' => $this->expiringLeasesReport($propertyId, $unitId, $table),
+            'vacancies' => $this->vacanciesReport($propertyId, $unitId, $table),
+            'deposits' => $this->depositsReport($propertyId, $unitId, $table),
             default => throw new NotFoundHttpException("Unknown report type \"{$type}\"."),
         };
     }
 
     /**
-     * @return array{columns: array<int, array{key: string, label: string, type: string}>, rows: array<int, array<string, string>>, summary: array<int, array{label: string, value: string, type: string}>}
+     * @return array{columns: array<int, array{key: string, label: string, type: string, sortable: bool}>, rows: array<int, array<string, string>>, summary: array<int, array{label: string, value: string, type: string}>|null, pagination: array<string, mixed>|null, sort: string, dir: string}
      */
-    private function incomeReport(Carbon $from, Carbon $to, ?int $propertyId, ?int $unitId): array
+    private function incomeReport(Carbon $from, Carbon $to, ?int $propertyId, ?int $unitId, ReportTableParams $table): array
     {
         $payments = $this->scopeByLease(
             Payment::query()
@@ -263,63 +387,108 @@ class ReportController extends Controller
                 ])
             : collect();
 
-        $rows = $payments->concat($transactions)->sortByDesc('date')->values()->all();
+        /** @var Collection<int, array<string, string>> $allRows */
+        $allRows = $payments->concat($transactions);
+
+        $sort = in_array($table->sort, ['date', 'property', 'category', 'description', 'amount'], true)
+            ? $table->sort
+            : 'date';
+        $dir = $table->sort === '' ? 'desc' : $table->dir;
+        $effectiveTable = new ReportTableParams($table->page, $table->perPage, $sort, $dir, $table->search);
+
+        [$rows, $pagination] = $this->searchSortPaginate(
+            $allRows,
+            $effectiveTable,
+            ['property', 'category', 'description'],
+            ['amount'],
+        );
 
         return [
             'columns' => [
-                ['key' => 'date', 'label' => 'Date', 'type' => 'date'],
-                ['key' => 'property', 'label' => 'Property', 'type' => 'text'],
-                ['key' => 'category', 'label' => 'Category', 'type' => 'text'],
-                ['key' => 'description', 'label' => 'Description', 'type' => 'text'],
-                ['key' => 'amount', 'label' => 'Amount', 'type' => 'currency'],
+                ['key' => 'date', 'label' => 'Date', 'type' => 'date', 'sortable' => true],
+                ['key' => 'property', 'label' => 'Property', 'type' => 'text', 'sortable' => true],
+                ['key' => 'category', 'label' => 'Category', 'type' => 'text', 'sortable' => true],
+                ['key' => 'description', 'label' => 'Description', 'type' => 'text', 'sortable' => true],
+                ['key' => 'amount', 'label' => 'Amount', 'type' => 'currency', 'sortable' => true],
             ],
             'rows' => $rows,
             'summary' => [
                 ['label' => 'Total income', 'value' => (string) ($payments->sum('amount') + $transactions->sum('amount')), 'type' => 'currency'],
             ],
+            'pagination' => $pagination,
+            'sort' => $sort,
+            'dir' => $dir,
         ];
     }
 
     /**
-     * @return array{columns: array<int, array{key: string, label: string, type: string}>, rows: array<int, array<string, string>>, summary: array<int, array{label: string, value: string, type: string}>}
+     * @return array{columns: array<int, array{key: string, label: string, type: string, sortable: bool}>, rows: array<int, array<string, string>>, summary: array<int, array{label: string, value: string, type: string}>|null, pagination: array<string, mixed>|null, sort: string, dir: string}
      */
-    private function expenseReport(Carbon $from, Carbon $to, ?int $propertyId): array
+    private function expenseReport(Carbon $from, Carbon $to, ?int $propertyId, ReportTableParams $table): array
     {
-        $transactions = Transaction::query()
-            ->where('type', TransactionType::Expense->value)
-            ->whereBetween('transaction_date', [$from->toDateString(), $to->toDateString()])
-            ->when($propertyId !== null, fn (Builder $q) => $q->where('property_id', $propertyId))
-            ->with(['property', 'category'])
-            ->orderByDesc('transaction_date')
-            ->get();
+        $sortColumns = [
+            'date' => 'transactions.transaction_date',
+            'property' => 'properties.name',
+            'category' => 'categories.name',
+            'description' => 'transactions.description',
+            'amount' => 'transactions.amount',
+        ];
+        $sort = array_key_exists($table->sort, $sortColumns) ? $table->sort : 'date';
+        $dir = $table->sort === '' ? 'desc' : $table->dir;
 
-        $rows = $transactions->map(fn (Transaction $t): array => [
+        $base = Transaction::query()
+            ->where('transactions.type', TransactionType::Expense->value)
+            ->whereBetween('transactions.transaction_date', [$from->toDateString(), $to->toDateString()])
+            ->when($propertyId !== null, fn (Builder $q) => $q->where('transactions.property_id', $propertyId));
+
+        $summary = (clone $base)->sum('amount');
+
+        $query = $base
+            ->leftJoin('properties', 'properties.id', '=', 'transactions.property_id')
+            ->leftJoin('categories', 'categories.id', '=', 'transactions.category_id')
+            ->select('transactions.*')
+            ->with(['property', 'category']);
+
+        if ($table->search !== '') {
+            $needle = "%{$table->search}%";
+            $query->where(fn (Builder $q) => $q->where('transactions.description', 'like', $needle)
+                ->orWhere('transactions.code', 'like', $needle)
+                ->orWhere('properties.name', 'like', $needle)
+                ->orWhere('categories.name', 'like', $needle));
+        }
+
+        $query->orderBy($sortColumns[$sort], $dir)->orderBy('transactions.id');
+
+        [$rows, $pagination] = $this->fetchRows($query, $table, fn (Transaction $t): array => [
             'date' => $t->transaction_date->toDateString(),
             'property' => $t->property->name ?? '—',
             'category' => $t->category !== null ? $t->category->name : 'Uncategorized',
             'description' => $t->description ?: '—',
             'amount' => (string) $t->amount,
-        ])->all();
+        ]);
 
         return [
             'columns' => [
-                ['key' => 'date', 'label' => 'Date', 'type' => 'date'],
-                ['key' => 'property', 'label' => 'Property', 'type' => 'text'],
-                ['key' => 'category', 'label' => 'Category', 'type' => 'text'],
-                ['key' => 'description', 'label' => 'Description', 'type' => 'text'],
-                ['key' => 'amount', 'label' => 'Amount', 'type' => 'currency'],
+                ['key' => 'date', 'label' => 'Date', 'type' => 'date', 'sortable' => true],
+                ['key' => 'property', 'label' => 'Property', 'type' => 'text', 'sortable' => true],
+                ['key' => 'category', 'label' => 'Category', 'type' => 'text', 'sortable' => true],
+                ['key' => 'description', 'label' => 'Description', 'type' => 'text', 'sortable' => true],
+                ['key' => 'amount', 'label' => 'Amount', 'type' => 'currency', 'sortable' => true],
             ],
             'rows' => $rows,
             'summary' => [
-                ['label' => 'Total expenses', 'value' => (string) $transactions->sum('amount'), 'type' => 'currency'],
+                ['label' => 'Total expenses', 'value' => (string) $summary, 'type' => 'currency'],
             ],
+            'pagination' => $pagination,
+            'sort' => $sort,
+            'dir' => $dir,
         ];
     }
 
     /**
-     * @return array{columns: array<int, array{key: string, label: string, type: string}>, rows: array<int, array<string, string>>, summary: array<int, array{label: string, value: string, type: string}>}
+     * @return array{columns: array<int, array{key: string, label: string, type: string, sortable: bool}>, rows: array<int, array<string, string>>, summary: array<int, array{label: string, value: string, type: string}>|null, pagination: array<string, mixed>|null, sort: string, dir: string}
      */
-    private function profitLossReport(Carbon $from, Carbon $to, ?int $propertyId, ?int $unitId): array
+    private function profitLossReport(Carbon $from, Carbon $to, ?int $propertyId, ?int $unitId, ReportTableParams $table): array
     {
         $rentCollected = (string) $this->scopeByLease(
             Payment::query()
@@ -346,80 +515,144 @@ class ReportController extends Controller
         $totalIncome = $incomeRows->sum(fn (array $row) => (float) $row['amount']);
         $totalExpense = $expenseRows->sum(fn (array $row) => (float) $row['amount']);
 
+        $sort = in_array($table->sort, ['type', 'category', 'amount'], true) ? $table->sort : '';
+        $effectiveTable = new ReportTableParams($table->page, $table->perPage, $sort, $table->dir, $table->search);
+
+        /** @var Collection<int, array<string, string>> $profitLossRows */
+        $profitLossRows = $incomeRows->concat($expenseRows);
+
+        [$rows, $pagination] = $this->searchSortPaginate(
+            $profitLossRows,
+            $effectiveTable,
+            ['type', 'category'],
+            ['amount'],
+        );
+
         return [
             'columns' => [
-                ['key' => 'type', 'label' => 'Type', 'type' => 'text'],
-                ['key' => 'category', 'label' => 'Category', 'type' => 'text'],
-                ['key' => 'amount', 'label' => 'Amount', 'type' => 'currency'],
+                ['key' => 'type', 'label' => 'Type', 'type' => 'text', 'sortable' => true],
+                ['key' => 'category', 'label' => 'Category', 'type' => 'text', 'sortable' => true],
+                ['key' => 'amount', 'label' => 'Amount', 'type' => 'currency', 'sortable' => true],
             ],
-            'rows' => $incomeRows->concat($expenseRows)->values()->all(),
+            'rows' => $rows,
             'summary' => [
                 ['label' => 'Total income', 'value' => (string) $totalIncome, 'type' => 'currency'],
                 ['label' => 'Total expenses', 'value' => (string) $totalExpense, 'type' => 'currency'],
                 ['label' => 'Net profit', 'value' => (string) ($totalIncome - $totalExpense), 'type' => 'currency'],
             ],
+            'pagination' => $pagination,
+            'sort' => $sort,
+            'dir' => $table->dir,
         ];
     }
 
     /**
-     * @return array{columns: array<int, array{key: string, label: string, type: string}>, rows: array<int, array<string, string>>, summary: null}
+     * @return array{columns: array<int, array{key: string, label: string, type: string, sortable: bool}>, rows: array<int, array<string, string>>, summary: array<int, array{label: string, value: string, type: string}>|null, pagination: array<string, mixed>|null, sort: string, dir: string}
      */
-    private function rentCollectionReport(Carbon $from, Carbon $to, ?int $propertyId, ?int $unitId): array
+    private function rentCollectionReport(Carbon $from, Carbon $to, ?int $propertyId, ?int $unitId, ReportTableParams $table): array
     {
-        $rows = Property::query()
+        $sortColumns = [
+            'property' => 'properties.name',
+            'billed' => 'billed',
+            'collected' => 'collected',
+        ];
+        $sort = array_key_exists($table->sort, $sortColumns) ? $table->sort : 'property';
+        $dir = $table->sort === '' ? 'asc' : $table->dir;
+
+        $query = Property::query()
             ->when($propertyId !== null, fn (Builder $q) => $q->whereKey($propertyId))
-            ->orderBy('name')->get()
-            ->map(function (Property $property) use ($from, $to, $unitId): array {
-                $billed = PaymentSchedule::query()
-                    ->whereHas('lease.unit', fn (Builder $q) => $q->where('property_id', $property->id))
-                    ->when($unitId !== null, fn (Builder $q) => $q->whereHas('lease', fn (Builder $q2) => $q2->where('unit_id', $unitId)))
-                    ->whereBetween('period_start', [$from->toDateString(), $to->toDateString()])
-                    ->sum('amount_expected');
+            ->select('properties.*')
+            ->selectSub(function (QueryBuilder $q) use ($from, $to, $unitId): void {
+                $q->from('payment_schedules')
+                    ->selectRaw('COALESCE(SUM(amount_expected), 0)')
+                    ->join('leases', 'leases.id', '=', 'payment_schedules.lease_id')
+                    ->join('units', 'units.id', '=', 'leases.unit_id')
+                    ->whereColumn('units.property_id', 'properties.id')
+                    ->whereBetween('payment_schedules.period_start', [$from->toDateString(), $to->toDateString()])
+                    ->when($unitId !== null, fn (QueryBuilder $q2) => $q2->where('leases.unit_id', $unitId));
+            }, 'billed')
+            ->selectSub(function (QueryBuilder $q) use ($from, $to, $unitId): void {
+                $q->from('payments')
+                    ->selectRaw('COALESCE(SUM(amount), 0)')
+                    ->join('leases', 'leases.id', '=', 'payments.lease_id')
+                    ->join('units', 'units.id', '=', 'leases.unit_id')
+                    ->whereColumn('units.property_id', 'properties.id')
+                    ->where('payments.status', PaymentStatus::Completed->value)
+                    ->whereBetween('payments.payment_date', [$from->toDateString(), $to->toDateString()])
+                    ->when($unitId !== null, fn (QueryBuilder $q2) => $q2->where('leases.unit_id', $unitId));
+            }, 'collected');
 
-                $collected = Payment::query()
-                    ->where('status', PaymentStatus::Completed->value)
-                    ->whereHas('lease.unit', fn (Builder $q) => $q->where('property_id', $property->id))
-                    ->when($unitId !== null, fn (Builder $q) => $q->whereHas('lease', fn (Builder $q2) => $q2->where('unit_id', $unitId)))
-                    ->whereBetween('payment_date', [$from->toDateString(), $to->toDateString()])
-                    ->sum('amount');
+        if ($table->search !== '') {
+            $query->where('properties.name', 'like', "%{$table->search}%");
+        }
 
-                return [
-                    'property' => $property->name,
-                    'billed' => (string) $billed,
-                    'collected' => (string) $collected,
-                    'rate' => $billed > 0 ? round($collected / $billed * 100, 1).'%' : '—',
-                ];
-            })->all();
+        $query->orderBy($sortColumns[$sort], $dir)->orderBy('properties.id');
+
+        [$rows, $pagination] = $this->fetchRows($query, $table, function (Property $property): array {
+            $billed = (float) $property->getAttribute('billed');
+            $collected = (float) $property->getAttribute('collected');
+
+            return [
+                'property' => $property->name,
+                'billed' => (string) $billed,
+                'collected' => (string) $collected,
+                'rate' => $billed > 0 ? round($collected / $billed * 100, 1).'%' : '—',
+            ];
+        });
 
         return [
             'columns' => [
-                ['key' => 'property', 'label' => 'Property', 'type' => 'text'],
-                ['key' => 'billed', 'label' => 'Billed', 'type' => 'currency'],
-                ['key' => 'collected', 'label' => 'Collected', 'type' => 'currency'],
-                ['key' => 'rate', 'label' => 'Collection rate', 'type' => 'text'],
+                ['key' => 'property', 'label' => 'Property', 'type' => 'text', 'sortable' => true],
+                ['key' => 'billed', 'label' => 'Billed', 'type' => 'currency', 'sortable' => true],
+                ['key' => 'collected', 'label' => 'Collected', 'type' => 'currency', 'sortable' => true],
+                ['key' => 'rate', 'label' => 'Collection rate', 'type' => 'text', 'sortable' => false],
             ],
             'rows' => $rows,
             'summary' => null,
+            'pagination' => $pagination,
+            'sort' => $sort,
+            'dir' => $dir,
         ];
     }
 
     /**
-     * @return array{columns: array<int, array{key: string, label: string, type: string}>, rows: array<int, array<string, string>>, summary: array<int, array{label: string, value: string, type: string}>}
+     * @return array{columns: array<int, array{key: string, label: string, type: string, sortable: bool}>, rows: array<int, array<string, string>>, summary: array<int, array{label: string, value: string, type: string}>|null, pagination: array<string, mixed>|null, sort: string, dir: string}
      */
-    private function rentArrearsReport(?int $propertyId, ?int $unitId): array
+    private function rentArrearsReport(?int $propertyId, ?int $unitId, ReportTableParams $table): array
     {
         $today = Carbon::today();
 
-        $schedules = $this->scopeByLease(PaymentSchedule::overdue(), $propertyId, $unitId)
+        $sortColumns = [
+            'unit' => 'units.name',
+            'property' => 'properties.name',
+            'period' => 'payment_schedules.period_start',
+            'status' => 'payment_schedules.status',
+        ];
+        $sort = array_key_exists($table->sort, $sortColumns) ? $table->sort : 'period';
+        $dir = $table->sort === '' ? 'asc' : $table->dir;
+
+        $query = $this->scopeByLease(PaymentSchedule::overdue(), $propertyId, $unitId)
+            ->leftJoin('leases', 'leases.id', '=', 'payment_schedules.lease_id')
+            ->leftJoin('units', 'units.id', '=', 'leases.unit_id')
+            ->leftJoin('properties', 'properties.id', '=', 'units.property_id')
+            ->select('payment_schedules.*')
             ->withSum(
                 ['payments as paid_amount' => fn (Builder $q) => $q->where('status', PaymentStatus::Completed->value)],
                 'amount',
             )
-            ->with(['lease.unit.property', 'lease.tenants'])
-            ->orderBy('period_start')
-            ->get();
+            ->with(['lease.unit.property', 'lease.tenants']);
 
-        $rows = $schedules->map(function (PaymentSchedule $schedule) use ($today): array {
+        if ($table->search !== '') {
+            $needle = "%{$table->search}%";
+            $query->where(fn (Builder $q) => $q
+                ->whereHas('lease.tenants', fn (Builder $t) => $t->where('name', 'like', $needle))
+                ->orWhere('units.name', 'like', $needle)
+                ->orWhere('properties.name', 'like', $needle));
+        }
+
+        $query->orderBy($sortColumns[$sort], $dir)->orderBy('payment_schedules.id');
+
+        [$rows, $pagination] = $this->fetchRows($query, $table, function (PaymentSchedule $schedule) use ($today): array {
             $balance = max(0.0, (float) $schedule->amount_expected - (float) ($schedule->paid_amount ?? 0));
 
             return [
@@ -431,70 +664,110 @@ class ReportController extends Controller
                 'days_overdue' => (string) $schedule->period_start->diffInDays($today),
                 'status' => $schedule->status->label(),
             ];
-        })->all();
+        });
+
+        // Overdue balance total, independent of the current search/page.
+        $summaryQuery = $this->scopeByLease(PaymentSchedule::overdue(), $propertyId, $unitId)
+            ->withSum(
+                ['payments as paid_amount' => fn (Builder $q) => $q->where('status', PaymentStatus::Completed->value)],
+                'amount',
+            );
+        $totalOverdue = $summaryQuery->get()->sum(
+            fn (PaymentSchedule $schedule) => max(0.0, (float) $schedule->amount_expected - (float) ($schedule->paid_amount ?? 0)),
+        );
 
         return [
             'columns' => [
-                ['key' => 'tenant', 'label' => 'Tenant', 'type' => 'text'],
-                ['key' => 'unit', 'label' => 'Unit', 'type' => 'text'],
-                ['key' => 'property', 'label' => 'Property', 'type' => 'text'],
-                ['key' => 'period', 'label' => 'Period', 'type' => 'text'],
-                ['key' => 'amount_due', 'label' => 'Amount due', 'type' => 'currency'],
-                ['key' => 'days_overdue', 'label' => 'Days overdue', 'type' => 'number'],
-                ['key' => 'status', 'label' => 'Status', 'type' => 'text'],
+                ['key' => 'tenant', 'label' => 'Tenant', 'type' => 'text', 'sortable' => false],
+                ['key' => 'unit', 'label' => 'Unit', 'type' => 'text', 'sortable' => true],
+                ['key' => 'property', 'label' => 'Property', 'type' => 'text', 'sortable' => true],
+                ['key' => 'period', 'label' => 'Period', 'type' => 'text', 'sortable' => true],
+                ['key' => 'amount_due', 'label' => 'Amount due', 'type' => 'currency', 'sortable' => false],
+                ['key' => 'days_overdue', 'label' => 'Days overdue', 'type' => 'number', 'sortable' => false],
+                ['key' => 'status', 'label' => 'Status', 'type' => 'text', 'sortable' => true],
             ],
             'rows' => $rows,
             'summary' => [
-                ['label' => 'Total overdue', 'value' => (string) collect($rows)->sum(fn (array $row) => (float) $row['amount_due']), 'type' => 'currency'],
+                ['label' => 'Total overdue', 'value' => (string) $totalOverdue, 'type' => 'currency'],
             ],
+            'pagination' => $pagination,
+            'sort' => $sort,
+            'dir' => $dir,
         ];
     }
 
     /**
-     * @return array{columns: array<int, array{key: string, label: string, type: string}>, rows: array<int, array<string, string>>, summary: null}
+     * @return array{columns: array<int, array{key: string, label: string, type: string, sortable: bool}>, rows: array<int, array<string, string>>, summary: array<int, array{label: string, value: string, type: string}>|null, pagination: array<string, mixed>|null, sort: string, dir: string}
      */
-    private function advancePaymentsReport(?int $propertyId, ?int $unitId): array
+    private function advancePaymentsReport(?int $propertyId, ?int $unitId, ReportTableParams $table): array
     {
         $today = Carbon::today();
 
-        $schedules = $this->scopeByLease(
+        $sortColumns = [
+            'unit' => 'units.name',
+            'property' => 'properties.name',
+            'period' => 'payment_schedules.period_start',
+            'amount_paid' => 'payment_schedules.amount_expected',
+        ];
+        $sort = array_key_exists($table->sort, $sortColumns) ? $table->sort : 'period';
+        $dir = $table->sort === '' ? 'asc' : $table->dir;
+
+        $query = $this->scopeByLease(
             PaymentSchedule::query()
-                ->where('status', PaymentScheduleStatus::Paid->value)
-                ->where('period_start', '>', $today->toDateString()),
+                ->where('payment_schedules.status', PaymentScheduleStatus::Paid->value)
+                ->where('payment_schedules.period_start', '>', $today->toDateString()),
             $propertyId,
             $unitId,
         )
-            ->with(['lease.unit.property', 'lease.tenants'])
-            ->orderBy('period_start')
-            ->get();
+            ->leftJoin('leases', 'leases.id', '=', 'payment_schedules.lease_id')
+            ->leftJoin('units', 'units.id', '=', 'leases.unit_id')
+            ->leftJoin('properties', 'properties.id', '=', 'units.property_id')
+            ->select('payment_schedules.*')
+            ->with(['lease.unit.property', 'lease.tenants']);
 
-        $rows = $schedules->map(fn (PaymentSchedule $schedule): array => [
+        if ($table->search !== '') {
+            $needle = "%{$table->search}%";
+            $query->where(fn (Builder $q) => $q
+                ->whereHas('lease.tenants', fn (Builder $t) => $t->where('name', 'like', $needle))
+                ->orWhere('units.name', 'like', $needle)
+                ->orWhere('properties.name', 'like', $needle));
+        }
+
+        $query->orderBy($sortColumns[$sort], $dir)->orderBy('payment_schedules.id');
+
+        [$rows, $pagination] = $this->fetchRows($query, $table, fn (PaymentSchedule $schedule): array => [
             'tenant' => $this->tenantNames($schedule->lease?->tenants),
             'unit' => $schedule->lease?->unit->name ?? '—',
             'property' => $schedule->lease?->unit?->property->name ?? '—',
             'period' => "{$schedule->period_start->toDateString()} – {$schedule->period_end->toDateString()}",
             'amount_paid' => (string) $schedule->amount_expected,
-        ])->all();
+        ]);
 
         return [
             'columns' => [
-                ['key' => 'tenant', 'label' => 'Tenant', 'type' => 'text'],
-                ['key' => 'unit', 'label' => 'Unit', 'type' => 'text'],
-                ['key' => 'property', 'label' => 'Property', 'type' => 'text'],
-                ['key' => 'period', 'label' => 'Prepaid period', 'type' => 'text'],
-                ['key' => 'amount_paid', 'label' => 'Amount', 'type' => 'currency'],
+                ['key' => 'tenant', 'label' => 'Tenant', 'type' => 'text', 'sortable' => false],
+                ['key' => 'unit', 'label' => 'Unit', 'type' => 'text', 'sortable' => true],
+                ['key' => 'property', 'label' => 'Property', 'type' => 'text', 'sortable' => true],
+                ['key' => 'period', 'label' => 'Prepaid period', 'type' => 'text', 'sortable' => true],
+                ['key' => 'amount_paid', 'label' => 'Amount', 'type' => 'currency', 'sortable' => true],
             ],
             'rows' => $rows,
             'summary' => null,
+            'pagination' => $pagination,
+            'sort' => $sort,
+            'dir' => $dir,
         ];
     }
 
     /**
-     * @return array{columns: array<int, array{key: string, label: string, type: string}>, rows: array<int, array<string, string>>, summary: null}
+     * @return array{columns: array<int, array{key: string, label: string, type: string, sortable: bool}>, rows: array<int, array<string, string>>, summary: array<int, array{label: string, value: string, type: string}>|null, pagination: array<string, mixed>|null, sort: string, dir: string}
      */
-    private function tenantRosterReport(?int $propertyId, ?int $unitId): array
+    private function tenantRosterReport(?int $propertyId, ?int $unitId, ReportTableParams $table): array
     {
-        $activeLease = function ($q) use ($propertyId, $unitId) {
+        // Untyped: whereHas() passes this a plain Builder, but the with()
+        // eager-load constraint below passes a BelongsToMany relation
+        // instance instead — both forward where()/whereHas() the same way.
+        $activeLease = function ($q) use ($propertyId, $unitId): void {
             $q->where('status', LeaseStatus::Active->value);
 
             if ($unitId !== null) {
@@ -504,16 +777,36 @@ class ReportController extends Controller
             }
         };
 
-        $tenants = Tenant::query()
+        $sortColumns = [
+            'tenant' => 'name',
+            'email' => 'email',
+            'phone' => 'phone',
+        ];
+        $sort = array_key_exists($table->sort, $sortColumns) ? $table->sort : 'tenant';
+        $dir = $table->sort === '' ? 'asc' : $table->dir;
+
+        $query = Tenant::query()
             ->whereHas('leases', $activeLease)
-            ->with(['leases' => function ($q) use ($activeLease) {
+            ->with(['leases' => function ($q) use ($activeLease): void {
                 $activeLease($q);
                 $q->with('unit.property');
-            }])
-            ->orderBy('name')
-            ->get();
+            }]);
 
-        $rows = $tenants->map(function (Tenant $tenant): array {
+        if ($table->search !== '') {
+            $needle = "%{$table->search}%";
+            $query->where(fn (Builder $q) => $q->where('name', 'like', $needle)
+                ->orWhere('email', 'like', $needle)
+                ->orWhere('phone', 'like', $needle)
+                ->orWhereHas('leases', function (Builder $q2) use ($activeLease, $needle): void {
+                    $activeLease($q2);
+                    $q2->where(fn (Builder $q3) => $q3->whereHas('unit', fn (Builder $u) => $u->where('name', 'like', $needle)
+                        ->orWhereHas('property', fn (Builder $p) => $p->where('name', 'like', $needle))));
+                }));
+        }
+
+        $query->orderBy($sortColumns[$sort], $dir)->orderBy('id');
+
+        [$rows, $pagination] = $this->fetchRows($query, $table, function (Tenant $tenant): array {
             $lease = $tenant->leases->first();
 
             return [
@@ -524,165 +817,261 @@ class ReportController extends Controller
                 'property' => $lease?->unit?->property->name ?? '—',
                 'lease_status' => $lease !== null ? $lease->status->label() : '—',
             ];
-        })->all();
+        });
 
         return [
             'columns' => [
-                ['key' => 'tenant', 'label' => 'Tenant', 'type' => 'text'],
-                ['key' => 'email', 'label' => 'Email', 'type' => 'text'],
-                ['key' => 'phone', 'label' => 'Phone', 'type' => 'text'],
-                ['key' => 'unit', 'label' => 'Unit', 'type' => 'text'],
-                ['key' => 'property', 'label' => 'Property', 'type' => 'text'],
-                ['key' => 'lease_status', 'label' => 'Lease status', 'type' => 'text'],
+                ['key' => 'tenant', 'label' => 'Tenant', 'type' => 'text', 'sortable' => true],
+                ['key' => 'email', 'label' => 'Email', 'type' => 'text', 'sortable' => true],
+                ['key' => 'phone', 'label' => 'Phone', 'type' => 'text', 'sortable' => true],
+                ['key' => 'unit', 'label' => 'Unit', 'type' => 'text', 'sortable' => false],
+                ['key' => 'property', 'label' => 'Property', 'type' => 'text', 'sortable' => false],
+                ['key' => 'lease_status', 'label' => 'Lease status', 'type' => 'text', 'sortable' => false],
             ],
             'rows' => $rows,
             'summary' => null,
+            'pagination' => $pagination,
+            'sort' => $sort,
+            'dir' => $dir,
         ];
     }
 
     /**
-     * @return array{columns: array<int, array{key: string, label: string, type: string}>, rows: array<int, array<string, string>>, summary: null}
+     * @return array{columns: array<int, array{key: string, label: string, type: string, sortable: bool}>, rows: array<int, array<string, string>>, summary: array<int, array{label: string, value: string, type: string}>|null, pagination: array<string, mixed>|null, sort: string, dir: string}
      */
-    private function newResidentsReport(Carbon $from, Carbon $to, ?int $propertyId, ?int $unitId): array
+    private function newResidentsReport(Carbon $from, Carbon $to, ?int $propertyId, ?int $unitId, ReportTableParams $table): array
     {
-        $leases = $this->scopeLeases(
+        $sortColumns = [
+            'unit' => 'units.name',
+            'property' => 'properties.name',
+            'move_in' => 'leases.start_date',
+            'rent' => 'leases.rent_amount',
+        ];
+        $sort = array_key_exists($table->sort, $sortColumns) ? $table->sort : 'move_in';
+        $dir = $table->sort === '' ? 'asc' : $table->dir;
+
+        $query = $this->scopeLeases(
             Lease::query()->whereBetween('start_date', [$from->toDateString(), $to->toDateString()]),
             $propertyId,
             $unitId,
         )
-            ->with(['unit.property', 'tenants'])
-            ->orderBy('start_date')
-            ->get();
+            ->leftJoin('units', 'units.id', '=', 'leases.unit_id')
+            ->leftJoin('properties', 'properties.id', '=', 'units.property_id')
+            ->select('leases.*')
+            ->with(['unit.property', 'tenants']);
 
-        $rows = $leases->map(fn (Lease $lease): array => [
+        if ($table->search !== '') {
+            $needle = "%{$table->search}%";
+            $query->where(fn (Builder $q) => $q
+                ->whereHas('tenants', fn (Builder $t) => $t->where('name', 'like', $needle))
+                ->orWhere('units.name', 'like', $needle)
+                ->orWhere('properties.name', 'like', $needle));
+        }
+
+        $query->orderBy($sortColumns[$sort], $dir)->orderBy('leases.id');
+
+        [$rows, $pagination] = $this->fetchRows($query, $table, fn (Lease $lease): array => [
             'tenant' => $this->tenantNames($lease->tenants),
             'unit' => $lease->unit->name ?? '—',
             'property' => $lease->unit?->property->name ?? '—',
             'move_in' => $lease->start_date->toDateString(),
             'rent' => (string) $lease->rent_amount,
-        ])->all();
+        ]);
 
         return [
             'columns' => [
-                ['key' => 'tenant', 'label' => 'Tenant', 'type' => 'text'],
-                ['key' => 'unit', 'label' => 'Unit', 'type' => 'text'],
-                ['key' => 'property', 'label' => 'Property', 'type' => 'text'],
-                ['key' => 'move_in', 'label' => 'Move-in date', 'type' => 'date'],
-                ['key' => 'rent', 'label' => 'Rent', 'type' => 'currency'],
+                ['key' => 'tenant', 'label' => 'Tenant', 'type' => 'text', 'sortable' => false],
+                ['key' => 'unit', 'label' => 'Unit', 'type' => 'text', 'sortable' => true],
+                ['key' => 'property', 'label' => 'Property', 'type' => 'text', 'sortable' => true],
+                ['key' => 'move_in', 'label' => 'Move-in date', 'type' => 'date', 'sortable' => true],
+                ['key' => 'rent', 'label' => 'Rent', 'type' => 'currency', 'sortable' => true],
             ],
             'rows' => $rows,
             'summary' => null,
+            'pagination' => $pagination,
+            'sort' => $sort,
+            'dir' => $dir,
         ];
     }
 
     /**
-     * @return array{columns: array<int, array{key: string, label: string, type: string}>, rows: array<int, array<string, string>>, summary: null}
+     * @return array{columns: array<int, array{key: string, label: string, type: string, sortable: bool}>, rows: array<int, array<string, string>>, summary: array<int, array{label: string, value: string, type: string}>|null, pagination: array<string, mixed>|null, sort: string, dir: string}
      */
-    private function expiringLeasesReport(?int $propertyId, ?int $unitId): array
+    private function expiringLeasesReport(?int $propertyId, ?int $unitId, ReportTableParams $table): array
     {
         $today = Carbon::today();
         $horizon = $today->copy()->addDays(90);
 
-        $leases = $this->scopeLeases(
+        $sortColumns = [
+            'unit' => 'units.name',
+            'property' => 'properties.name',
+            'end_date' => 'leases.end_date',
+            'rent' => 'leases.rent_amount',
+        ];
+        $sort = array_key_exists($table->sort, $sortColumns) ? $table->sort : 'end_date';
+        $dir = $table->sort === '' ? 'asc' : $table->dir;
+
+        $query = $this->scopeLeases(
             Lease::query()
-                ->where('status', LeaseStatus::Active->value)
-                ->whereBetween('end_date', [$today->toDateString(), $horizon->toDateString()]),
+                ->where('leases.status', LeaseStatus::Active->value)
+                ->whereBetween('leases.end_date', [$today->toDateString(), $horizon->toDateString()]),
             $propertyId,
             $unitId,
         )
-            ->with(['unit.property', 'tenants'])
-            ->orderBy('end_date')
-            ->get();
+            ->leftJoin('units', 'units.id', '=', 'leases.unit_id')
+            ->leftJoin('properties', 'properties.id', '=', 'units.property_id')
+            ->select('leases.*')
+            ->with(['unit.property', 'tenants']);
 
-        $rows = $leases->map(fn (Lease $lease): array => [
+        if ($table->search !== '') {
+            $needle = "%{$table->search}%";
+            $query->where(fn (Builder $q) => $q
+                ->whereHas('tenants', fn (Builder $t) => $t->where('name', 'like', $needle))
+                ->orWhere('units.name', 'like', $needle)
+                ->orWhere('properties.name', 'like', $needle));
+        }
+
+        $query->orderBy($sortColumns[$sort], $dir)->orderBy('leases.id');
+
+        [$rows, $pagination] = $this->fetchRows($query, $table, fn (Lease $lease): array => [
             'tenant' => $this->tenantNames($lease->tenants),
             'unit' => $lease->unit->name ?? '—',
             'property' => $lease->unit?->property->name ?? '—',
             'end_date' => $lease->end_date->toDateString(),
             'days_remaining' => (string) $today->diffInDays($lease->end_date),
             'rent' => (string) $lease->rent_amount,
-        ])->all();
+        ]);
 
         return [
             'columns' => [
-                ['key' => 'tenant', 'label' => 'Tenant', 'type' => 'text'],
-                ['key' => 'unit', 'label' => 'Unit', 'type' => 'text'],
-                ['key' => 'property', 'label' => 'Property', 'type' => 'text'],
-                ['key' => 'end_date', 'label' => 'End date', 'type' => 'date'],
-                ['key' => 'days_remaining', 'label' => 'Days remaining', 'type' => 'number'],
-                ['key' => 'rent', 'label' => 'Rent', 'type' => 'currency'],
+                ['key' => 'tenant', 'label' => 'Tenant', 'type' => 'text', 'sortable' => false],
+                ['key' => 'unit', 'label' => 'Unit', 'type' => 'text', 'sortable' => true],
+                ['key' => 'property', 'label' => 'Property', 'type' => 'text', 'sortable' => true],
+                ['key' => 'end_date', 'label' => 'End date', 'type' => 'date', 'sortable' => true],
+                ['key' => 'days_remaining', 'label' => 'Days remaining', 'type' => 'number', 'sortable' => false],
+                ['key' => 'rent', 'label' => 'Rent', 'type' => 'currency', 'sortable' => true],
             ],
             'rows' => $rows,
             'summary' => null,
+            'pagination' => $pagination,
+            'sort' => $sort,
+            'dir' => $dir,
         ];
     }
 
     /**
-     * @return array{columns: array<int, array{key: string, label: string, type: string}>, rows: array<int, array<string, string>>, summary: null}
+     * @return array{columns: array<int, array{key: string, label: string, type: string, sortable: bool}>, rows: array<int, array<string, string>>, summary: array<int, array{label: string, value: string, type: string}>|null, pagination: array<string, mixed>|null, sort: string, dir: string}
      */
-    private function vacanciesReport(?int $propertyId, ?int $unitId): array
+    private function vacanciesReport(?int $propertyId, ?int $unitId, ReportTableParams $table): array
     {
-        $units = Unit::query()
-            ->where('status', UnitStatus::Vacant->value)
-            ->when($unitId !== null, fn (Builder $q) => $q->whereKey($unitId))
-            ->when($unitId === null && $propertyId !== null, fn (Builder $q) => $q->where('property_id', $propertyId))
-            ->with(['property', 'unitType', 'currentPrice'])
-            ->orderBy('name')
-            ->get();
+        $sortColumns = [
+            'unit' => 'units.name',
+            'property' => 'properties.name',
+            'unit_type' => 'unit_types.label',
+        ];
+        $sort = array_key_exists($table->sort, $sortColumns) ? $table->sort : 'unit';
+        $dir = $table->sort === '' ? 'asc' : $table->dir;
 
-        $rows = $units->map(fn (Unit $unit): array => [
+        $query = Unit::query()
+            ->where('units.status', UnitStatus::Vacant->value)
+            ->when($unitId !== null, fn (Builder $q) => $q->whereKey($unitId))
+            ->when($unitId === null && $propertyId !== null, fn (Builder $q) => $q->where('units.property_id', $propertyId))
+            ->leftJoin('properties', 'properties.id', '=', 'units.property_id')
+            ->leftJoin('unit_types', 'unit_types.id', '=', 'units.unit_type_id')
+            ->select('units.*')
+            ->with(['property', 'unitType', 'currentPrice']);
+
+        if ($table->search !== '') {
+            $needle = "%{$table->search}%";
+            $query->where(fn (Builder $q) => $q->where('units.name', 'like', $needle)
+                ->orWhere('properties.name', 'like', $needle)
+                ->orWhere('unit_types.label', 'like', $needle));
+        }
+
+        $query->orderBy($sortColumns[$sort], $dir)->orderBy('units.id');
+
+        [$rows, $pagination] = $this->fetchRows($query, $table, fn (Unit $unit): array => [
             'unit' => $unit->name,
             'property' => $unit->property->name ?? '—',
             'unit_type' => $unit->unitType->label ?? '—',
             'potential_rent' => $unit->currentPrice !== null ? (string) $unit->currentPrice->amount : '—',
-        ])->all();
+        ]);
 
         return [
             'columns' => [
-                ['key' => 'unit', 'label' => 'Unit', 'type' => 'text'],
-                ['key' => 'property', 'label' => 'Property', 'type' => 'text'],
-                ['key' => 'unit_type', 'label' => 'Unit type', 'type' => 'text'],
-                ['key' => 'potential_rent', 'label' => 'Potential rent', 'type' => 'currency'],
+                ['key' => 'unit', 'label' => 'Unit', 'type' => 'text', 'sortable' => true],
+                ['key' => 'property', 'label' => 'Property', 'type' => 'text', 'sortable' => true],
+                ['key' => 'unit_type', 'label' => 'Unit type', 'type' => 'text', 'sortable' => true],
+                ['key' => 'potential_rent', 'label' => 'Potential rent', 'type' => 'currency', 'sortable' => false],
             ],
             'rows' => $rows,
             'summary' => null,
+            'pagination' => $pagination,
+            'sort' => $sort,
+            'dir' => $dir,
         ];
     }
 
     /**
-     * @return array{columns: array<int, array{key: string, label: string, type: string}>, rows: array<int, array<string, string>>, summary: array<int, array{label: string, value: string, type: string}>}
+     * @return array{columns: array<int, array{key: string, label: string, type: string, sortable: bool}>, rows: array<int, array<string, string>>, summary: array<int, array{label: string, value: string, type: string}>|null, pagination: array<string, mixed>|null, sort: string, dir: string}
      */
-    private function depositsReport(?int $propertyId, ?int $unitId): array
+    private function depositsReport(?int $propertyId, ?int $unitId, ReportTableParams $table): array
     {
-        $leases = $this->scopeLeases(
-            Lease::query()->where('status', LeaseStatus::Active->value),
+        $sortColumns = [
+            'unit' => 'units.name',
+            'property' => 'properties.name',
+            'deposit' => 'leases.security_deposit',
+        ];
+        $sort = array_key_exists($table->sort, $sortColumns) ? $table->sort : 'unit';
+        $dir = $table->sort === '' ? 'asc' : $table->dir;
+
+        $base = $this->scopeLeases(
+            Lease::query()->where('leases.status', LeaseStatus::Active->value),
             $propertyId,
             $unitId,
-        )
-            ->with(['unit.property', 'tenants'])
-            ->orderBy('start_date')
-            ->get();
+        );
 
-        $rows = $leases->map(fn (Lease $lease): array => [
+        $summaryTotal = (clone $base)->sum('security_deposit');
+
+        $query = $base
+            ->leftJoin('units', 'units.id', '=', 'leases.unit_id')
+            ->leftJoin('properties', 'properties.id', '=', 'units.property_id')
+            ->select('leases.*')
+            ->with(['unit.property', 'tenants']);
+
+        if ($table->search !== '') {
+            $needle = "%{$table->search}%";
+            $query->where(fn (Builder $q) => $q
+                ->whereHas('tenants', fn (Builder $t) => $t->where('name', 'like', $needle))
+                ->orWhere('units.name', 'like', $needle)
+                ->orWhere('properties.name', 'like', $needle));
+        }
+
+        $query->orderBy($sortColumns[$sort], $dir)->orderBy('leases.id');
+
+        [$rows, $pagination] = $this->fetchRows($query, $table, fn (Lease $lease): array => [
             'tenant' => $this->tenantNames($lease->tenants),
             'unit' => $lease->unit->name ?? '—',
             'property' => $lease->unit?->property->name ?? '—',
             'deposit' => $lease->security_deposit !== null ? (string) $lease->security_deposit : '0',
             'status' => $lease->security_deposit !== null ? 'Held' : 'None',
-        ])->all();
+        ]);
 
         return [
             'columns' => [
-                ['key' => 'tenant', 'label' => 'Tenant', 'type' => 'text'],
-                ['key' => 'unit', 'label' => 'Unit', 'type' => 'text'],
-                ['key' => 'property', 'label' => 'Property', 'type' => 'text'],
-                ['key' => 'deposit', 'label' => 'Deposit', 'type' => 'currency'],
-                ['key' => 'status', 'label' => 'Status', 'type' => 'text'],
+                ['key' => 'tenant', 'label' => 'Tenant', 'type' => 'text', 'sortable' => false],
+                ['key' => 'unit', 'label' => 'Unit', 'type' => 'text', 'sortable' => true],
+                ['key' => 'property', 'label' => 'Property', 'type' => 'text', 'sortable' => true],
+                ['key' => 'deposit', 'label' => 'Deposit', 'type' => 'currency', 'sortable' => true],
+                ['key' => 'status', 'label' => 'Status', 'type' => 'text', 'sortable' => false],
             ],
             'rows' => $rows,
             'summary' => [
-                ['label' => 'Total held', 'value' => (string) $leases->sum('security_deposit'), 'type' => 'currency'],
+                ['label' => 'Total held', 'value' => (string) $summaryTotal, 'type' => 'currency'],
             ],
+            'pagination' => $pagination,
+            'sort' => $sort,
+            'dir' => $dir,
         ];
     }
 
