@@ -218,6 +218,43 @@ class LeaseManagementTest extends TestCase
         $this->assertSame($originalUnit->id, $lease->fresh()->unit_id);
     }
 
+    public function test_creating_a_lease_generates_a_lease_number(): void
+    {
+        $unit = Unit::factory()->create(['status' => UnitStatus::Vacant]);
+        $tenant = Tenant::factory()->create();
+
+        $this->actingAs($this->admin())
+            ->post(route('leases.store'), $this->leasePayload($unit, [$tenant->id]))
+            ->assertRedirect(route('leases.index'));
+
+        $lease = Lease::query()->where('unit_id', $unit->id)->firstOrFail();
+        $this->assertNotNull($lease->lease_number);
+        $this->assertStringStartsWith('LEASE-', $lease->lease_number);
+    }
+
+    public function test_admin_can_download_the_generated_lease_agreement_pdf(): void
+    {
+        $lease = Lease::factory()->create();
+        $lease->tenants()->attach(Tenant::factory()->create());
+
+        $response = $this->actingAs($this->admin())
+            ->get(route('leases.agreement', $lease));
+
+        $response->assertOk();
+        $this->assertSame('application/pdf', $response->headers->get('content-type'));
+    }
+
+    public function test_user_without_permission_cannot_download_the_lease_agreement(): void
+    {
+        $manager = User::factory()->create();
+        $manager->assignRole('Manager');
+        $lease = Lease::factory()->create();
+
+        $this->actingAs($manager)
+            ->get(route('leases.agreement', $lease))
+            ->assertForbidden();
+    }
+
     public function test_admin_can_trash_restore_and_permanently_delete_a_lease(): void
     {
         $admin = $this->admin();

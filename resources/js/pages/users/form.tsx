@@ -34,7 +34,15 @@ type UserFormRow = {
     email: string;
     role?: string;
     status?: string;
+    landlord_type: 'individual' | 'company' | null;
     landlord_id_number: string | null;
+    landlord_tin: string | null;
+    landlord_id_document_type:
+        | 'national_id'
+        | 'passport'
+        | 'company_registration_certificate'
+        | 'other'
+        | null;
     landlord_address: string | null;
     landlord_phone: string | null;
     landlord_notes: string | null;
@@ -48,7 +56,18 @@ type PageProps = {
     statuses: Option[];
     defaultRole?: string | null;
     passwordRules: string;
+    compliance_enabled: boolean;
 };
+
+const LANDLORD_ID_DOCUMENT_TYPES = [
+    { value: 'national_id', label: 'National ID' },
+    { value: 'passport', label: 'Passport' },
+    {
+        value: 'company_registration_certificate',
+        label: 'Company registration certificate',
+    },
+    { value: 'other', label: 'Other' },
+] as const;
 
 export default function UserForm({
     user,
@@ -56,6 +75,7 @@ export default function UserForm({
     statuses,
     defaultRole,
     passwordRules,
+    compliance_enabled: complianceEnabled,
 }: PageProps) {
     const { name: appName } = usePage().props;
     const isEdit = Boolean(user);
@@ -71,7 +91,10 @@ export default function UserForm({
             status: user?.status ?? statuses[0]?.value,
             password: '',
             password_confirmation: '',
+            landlord_type: user?.landlord_type ?? 'individual',
             landlord_id_number: user?.landlord_id_number ?? '',
+            landlord_tin: user?.landlord_tin ?? '',
+            landlord_id_document_type: user?.landlord_id_document_type ?? null,
             landlord_address: user?.landlord_address ?? '',
             landlord_phone: user?.landlord_phone ?? '',
             landlord_notes: user?.landlord_notes ?? '',
@@ -81,6 +104,8 @@ export default function UserForm({
             avatar_remove: false,
         },
     );
+
+    const isLandlordCompany = data.landlord_type === 'company';
 
     function handleSubmit(e: FormEvent) {
         e.preventDefault();
@@ -284,10 +309,38 @@ export default function UserForm({
                         <p className="mb-3 text-xs font-semibold tracking-wide text-text-tertiary uppercase">
                             Landlord details
                         </p>
+
+                        <div className="mb-4 grid gap-1.5">
+                            <Label>Landlord type</Label>
+                            <div className="inline-flex w-fit gap-0.5 rounded-full border border-border-soft bg-secondary p-[3px]">
+                                {(['individual', 'company'] as const).map(
+                                    (type) => (
+                                        <button
+                                            key={type}
+                                            type="button"
+                                            onClick={() =>
+                                                setField('landlord_type', type)
+                                            }
+                                            className={
+                                                'rounded-full px-3.5 py-1.5 text-[12.5px] font-semibold capitalize ' +
+                                                (data.landlord_type === type
+                                                    ? 'bg-card text-foreground shadow-sm'
+                                                    : 'text-text-secondary')
+                                            }
+                                        >
+                                            {type}
+                                        </button>
+                                    ),
+                                )}
+                            </div>
+                        </div>
+
                         <div className="grid gap-4 sm:grid-cols-2">
                             <div className="grid gap-1.5">
                                 <Label htmlFor="landlord_id_number">
-                                    ID / registration number
+                                    {isLandlordCompany
+                                        ? 'Registration number'
+                                        : 'ID number'}
                                 </Label>
                                 <Input
                                     id="landlord_id_number"
@@ -298,12 +351,74 @@ export default function UserForm({
                                             e.target.value,
                                         )
                                     }
-                                    placeholder="e.g. National ID or company registration no."
+                                    placeholder={
+                                        isLandlordCompany
+                                            ? 'URSB registration no.'
+                                            : 'National ID or passport no.'
+                                    }
                                 />
                                 <InputError
                                     message={errors.landlord_id_number}
                                 />
                             </div>
+
+                            {complianceEnabled && (
+                                <div className="grid gap-1.5">
+                                    <Label htmlFor="landlord_tin">TIN</Label>
+                                    <Input
+                                        id="landlord_tin"
+                                        value={data.landlord_tin ?? ''}
+                                        onChange={(e) =>
+                                            setField(
+                                                'landlord_tin',
+                                                e.target.value,
+                                            )
+                                        }
+                                        placeholder="Tax Identification Number"
+                                    />
+                                    <InputError message={errors.landlord_tin} />
+                                </div>
+                            )}
+
+                            {complianceEnabled && (
+                                <div className="grid gap-1.5">
+                                    <Label htmlFor="landlord_id_document_type">
+                                        ID document type
+                                    </Label>
+                                    <Select
+                                        value={
+                                            data.landlord_id_document_type ?? ''
+                                        }
+                                        onValueChange={(value) =>
+                                            setField(
+                                                'landlord_id_document_type',
+                                                value as typeof data.landlord_id_document_type,
+                                            )
+                                        }
+                                    >
+                                        <SelectTrigger id="landlord_id_document_type">
+                                            <SelectValue placeholder="Select a type…" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {LANDLORD_ID_DOCUMENT_TYPES.map(
+                                                (option) => (
+                                                    <SelectItem
+                                                        key={option.value}
+                                                        value={option.value}
+                                                    >
+                                                        {option.label}
+                                                    </SelectItem>
+                                                ),
+                                            )}
+                                        </SelectContent>
+                                    </Select>
+                                    <InputError
+                                        message={
+                                            errors.landlord_id_document_type
+                                        }
+                                    />
+                                </div>
+                            )}
 
                             <div className="grid gap-1.5">
                                 <Label htmlFor="landlord_address">

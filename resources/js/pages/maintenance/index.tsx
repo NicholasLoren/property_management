@@ -44,6 +44,7 @@ type PageProps = {
         search: string;
         status: string[];
         priority: string[];
+        property_id: string[];
         sort: string;
         dir: 'asc' | 'desc';
         per_page: number;
@@ -81,6 +82,9 @@ export default function MaintenanceIndex({
                 search: next.search || undefined,
                 status: next.status.length ? next.status : undefined,
                 priority: next.priority.length ? next.priority : undefined,
+                property_id: next.property_id.length
+                    ? next.property_id
+                    : undefined,
                 sort: next.sort,
                 dir: next.dir,
                 per_page: next.per_page,
@@ -152,7 +156,11 @@ export default function MaintenanceIndex({
     }
 
     function forceDelete(item: MaintenanceRow) {
-        if (!confirm(`Permanently delete "${item.title}"? This cannot be undone.`)) {
+        if (
+            !confirm(
+                `Permanently delete "${item.title}"? This cannot be undone.`,
+            )
+        ) {
             return;
         }
 
@@ -176,7 +184,11 @@ export default function MaintenanceIndex({
     );
 
     const trashColumns = useMemo(
-        () => getMaintenanceTrashColumns({ onRestore: restore, onForceDelete: forceDelete }),
+        () =>
+            getMaintenanceTrashColumns({
+                onRestore: restore,
+                onForceDelete: forceDelete,
+            }),
         [],
     );
 
@@ -225,7 +237,10 @@ export default function MaintenanceIndex({
                                 key={status.value}
                                 checked={filters.status.includes(status.value)}
                                 onCheckedChange={(checked) =>
-                                    toggleStatusFilter(status.value, checked === true)
+                                    toggleStatusFilter(
+                                        status.value,
+                                        checked === true,
+                                    )
                                 }
                                 onSelect={(e) => e.preventDefault()}
                             >
@@ -237,9 +252,14 @@ export default function MaintenanceIndex({
                         {priorities.map((priority) => (
                             <DropdownMenuCheckboxItem
                                 key={priority.value}
-                                checked={filters.priority.includes(priority.value)}
+                                checked={filters.priority.includes(
+                                    priority.value,
+                                )}
                                 onCheckedChange={(checked) =>
-                                    togglePriorityFilter(priority.value, checked === true)
+                                    togglePriorityFilter(
+                                        priority.value,
+                                        checked === true,
+                                    )
                                 }
                                 onSelect={(e) => e.preventDefault()}
                             >
@@ -280,7 +300,12 @@ export default function MaintenanceIndex({
                 {
                     search: filters.search || undefined,
                     status: filters.status.length ? filters.status : undefined,
-                    priority: filters.priority.length ? filters.priority : undefined,
+                    priority: filters.priority.length
+                        ? filters.priority
+                        : undefined,
+                    property_id: filters.property_id.length
+                        ? filters.property_id
+                        : undefined,
                     sort: filters.sort,
                     dir: filters.dir,
                     per_page: filters.per_page,
@@ -333,7 +358,10 @@ export default function MaintenanceIndex({
                                 onClick={() =>
                                     chip.group === 'status'
                                         ? toggleStatusFilter(chip.value, false)
-                                        : togglePriorityFilter(chip.value, false)
+                                        : togglePriorityFilter(
+                                              chip.value,
+                                              false,
+                                          )
                                 }
                                 className="rounded-full p-0.5 hover:bg-black/10"
                             >

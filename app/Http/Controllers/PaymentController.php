@@ -10,17 +10,27 @@ use App\Http\Requests\Payments\UpdatePaymentRequest;
 use App\Models\Lease;
 use App\Models\Payment;
 use App\Models\PaymentSchedule;
+use App\Models\Property;
 use App\Models\Tenant;
+use App\Services\CodeGenerator;
+use App\Settings\BrandingSettings;
 use App\Settings\GeneralSettings;
+use App\Support\Branding;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class PaymentController extends Controller
 {
+    private const PERIODS = ['this_month', 'last_month', 'last_3_months', 'this_year', 'all_time'];
+
+    public function __construct(private readonly CodeGenerator $codes) {}
+
     public function index(Request $request): Response
     {
         $filters = $this->parseFilters($request);
@@ -42,8 +52,31 @@ class PaymentController extends Controller
                 ->orWhereHas('lease.unit.property', fn (Builder $p) => $p->where('name', 'like', "%{$filters['search']}%")));
         }
 
-        if ($filters['tab'] !== 'trash' && $filters['statuses'] !== []) {
-            $query->whereIn('status', $filters['statuses']);
+        if ($filters['tab'] !== 'trash') {
+            if ($filters['statuses'] !== []) {
+                $query->whereIn('status', $filters['statuses']);
+            }
+
+            if ($filters['property'] !== 'all') {
+                $query->whereHas('lease.unit', fn (Builder $q) => $q->where('property_id', $filters['property']));
+            }
+
+            if ($filters['property_ids'] !== []) {
+                $query->whereHas('lease.unit', fn (Builder $q) => $q->whereIn('property_id', $filters['property_ids']));
+            }
+
+            if ($filters['tenant_id'] !== null) {
+                $query->where('tenant_id', $filters['tenant_id']);
+            }
+
+            if ($filters['method'] !== 'all') {
+                $query->where('method', $filters['method']);
+            }
+
+            if ($filters['period'] !== 'all_time') {
+                [$from, $to] = $this->periodRange($filters['period']);
+                $query->whereBetween('payment_date', [$from->toDateString(), $to->toDateString()]);
+            }
         }
 
         $sortColumn = $sort === 'amount' ? 'amount' : 'payment_date';
@@ -72,21 +105,37 @@ class PaymentController extends Controller
                 'dir' => $dir,
                 'per_page' => $perPage,
                 'tab' => $filters['tab'],
+                'property' => $filters['property'],
+                'property_id' => $filters['property_ids'],
+                'tenant_id' => $filters['tenant_id'],
+                'method' => $filters['method'],
+                'period' => $filters['period'],
             ],
             'counts' => [
                 'active' => Payment::count(),
                 'trash' => Payment::onlyTrashed()->count(),
             ],
-            'total_collected' => (string) Payment::where('status', PaymentStatus::Completed->value)->sum('amount'),
-            'statuses' => $this->statusOptions(),
+            // Closures: skipped entirely on a partial reload that excludes
+            // them (search/sort/pagination/filter changes never affect any
+            // of these), rather than re-queried on every such request.
+            'total_collected' => fn () => (string) Payment::where('status', PaymentStatus::Completed->value)->sum('amount'),
+            'statuses' => fn () => $this->statusOptions(),
+            'properties' => fn () => $this->propertyOptions(),
+            'methods' => fn () => $this->methodOptions(),
+            'periods' => fn () => $this->periodOptions(),
         ]);
     }
 
     /**
-     * @return array{tab: string, search: string, statuses: array<int, string>}
+     * @return array{tab: string, search: string, statuses: array<int, string>, property: string, property_ids: array<int, string>, tenant_id: string|null, method: string, period: string}
      */
     private function parseFilters(Request $request): array
     {
+        $property = $request->string('property', 'all')->value();
+        $method = $request->string('method', 'all')->value();
+        $period = $request->string('period', 'all_time')->value();
+        $tenantId = $request->string('tenant_id')->value();
+
         return [
             'tab' => $request->string('tab', 'active')->value() === 'trash' ? 'trash' : 'active',
             'search' => $request->string('search')->trim()->value(),
@@ -94,6 +143,59 @@ class PaymentController extends Controller
                 (array) $request->input('status', []),
                 array_column(PaymentStatus::cases(), 'value'),
             )),
+            'property' => $property !== '' && ctype_digit($property) ? $property : 'all',
+            // Scopes to several properties at once (e.g. a landlord's whole
+            // portfolio) — distinct from the single `property` chip above,
+            // which drives the visible filter control.
+            'property_ids' => array_values(array_filter((array) $request->input('property_id', []))),
+            'tenant_id' => $tenantId !== '' && ctype_digit($tenantId) ? $tenantId : null,
+            'method' => in_array($method, array_column(PaymentMethod::cases(), 'value'), true) ? $method : 'all',
+            'period' => in_array($period, self::PERIODS, true) ? $period : 'all_time',
+        ];
+    }
+
+    /**
+     * @return array{0: Carbon, 1: Carbon}
+     */
+    private function periodRange(string $period): array
+    {
+        $now = Carbon::now();
+
+        return match ($period) {
+            'this_month' => [$now->copy()->startOfMonth(), $now->copy()->endOfMonth()],
+            'last_month' => [
+                $now->copy()->subMonthNoOverflow()->startOfMonth(),
+                $now->copy()->subMonthNoOverflow()->endOfMonth(),
+            ],
+            'last_3_months' => [$now->copy()->subMonthsNoOverflow(2)->startOfMonth(), $now->copy()->endOfMonth()],
+            'this_year' => [$now->copy()->startOfYear(), $now->copy()->endOfYear()],
+            default => [$now->copy()->startOfMonth(), $now->copy()->endOfMonth()],
+        };
+    }
+
+    /**
+     * @return array<int, array{value: string, label: string}>
+     */
+    private function propertyOptions(): array
+    {
+        return Property::query()
+            ->orderBy('name')
+            ->get(['id', 'name'])
+            ->map(fn (Property $property): array => ['value' => (string) $property->id, 'label' => $property->name])
+            ->all();
+    }
+
+    /**
+     * @return array<int, array{value: string, label: string}>
+     */
+    private function periodOptions(): array
+    {
+        return [
+            ['value' => 'this_month', 'label' => 'This Month'],
+            ['value' => 'last_month', 'label' => 'Last Month'],
+            ['value' => 'last_3_months', 'label' => 'Last 3 Months'],
+            ['value' => 'this_year', 'label' => 'This Year'],
+            ['value' => 'all_time', 'label' => 'All Time'],
         ];
     }
 
@@ -136,9 +238,10 @@ class PaymentController extends Controller
                 'amount' => $request->validated('amount'),
             ]);
 
-            $this->syncReceipt($request, $payment);
+            $this->issueReceipt($request, $payment);
         } else {
-            $receiptMedia = null;
+            $hasUpload = $request->hasFile('receipt');
+            $sharedReceiptMedia = null;
 
             foreach ($schedules as $schedule) {
                 $paid = (float) $schedule->payments()->where('status', PaymentStatus::Completed)->sum('amount');
@@ -149,15 +252,22 @@ class PaymentController extends Controller
                     'payment_schedule_id' => $schedule->id,
                     'amount' => $balance,
                 ]);
+                $payment->forceFill(['receipt_number' => $this->codes->generate('receipt', $payment)])->save();
 
-                // The upload only survives being read once (addMediaFromRequest
-                // moves the temp file on first use), so every payment after the
-                // first gets the same receipt via a media copy instead.
-                if ($receiptMedia === null) {
-                    $this->syncReceipt($request, $payment);
-                    $receiptMedia = $payment->getFirstMedia('receipt');
+                if ($hasUpload) {
+                    // The upload only survives being read once (addMediaFromRequest
+                    // moves the temp file on first use), so every payment after
+                    // the first gets the same receipt via a media copy instead.
+                    if ($sharedReceiptMedia === null) {
+                        $this->syncReceipt($request, $payment);
+                        $sharedReceiptMedia = $payment->getFirstMedia('receipt');
+                    } else {
+                        $sharedReceiptMedia->copy($payment, 'receipt');
+                    }
                 } else {
-                    $receiptMedia->copy($payment, 'receipt');
+                    // No manual override — each payment gets its own generated
+                    // receipt reflecting its own amount and period.
+                    $this->generateReceiptPdf($payment);
                 }
             }
         }
@@ -205,7 +315,17 @@ class PaymentController extends Controller
             $payment->clearMediaCollection('receipt');
         }
 
-        $this->syncReceipt($request, $payment);
+        if ($request->hasFile('receipt')) {
+            $this->syncReceipt($request, $payment);
+        } elseif ($payment->getFirstMedia('receipt') === null) {
+            // No manual file on hand — the system always keeps a receipt on
+            // file unless staff deliberately supply one of their own.
+            $this->generateReceiptPdf($payment);
+        }
+
+        if ($payment->receipt_number === null) {
+            $payment->forceFill(['receipt_number' => $this->codes->generate('receipt', $payment)])->save();
+        }
 
         Inertia::flash('toast', ['type' => 'success', 'message' => 'Payment was updated.']);
 
@@ -249,6 +369,42 @@ class PaymentController extends Controller
     }
 
     /**
+     * Assigns the payment its reference number and, unless staff uploaded
+     * their own file, generates its receipt PDF — the system is always the
+     * source of a receipt unless a manual upload deliberately overrides it.
+     */
+    private function issueReceipt(Request $request, Payment $payment): void
+    {
+        $payment->forceFill(['receipt_number' => $this->codes->generate('receipt', $payment)])->save();
+
+        if ($request->hasFile('receipt')) {
+            $this->syncReceipt($request, $payment);
+
+            return;
+        }
+
+        $this->generateReceiptPdf($payment);
+    }
+
+    private function generateReceiptPdf(Payment $payment): void
+    {
+        $payment->loadMissing(['lease.unit.property', 'tenant', 'paymentSchedule']);
+
+        $branding = app(BrandingSettings::class);
+
+        $pdf = Pdf::loadView('payments.receipt', [
+            'payment' => $payment,
+            'accentColor' => $branding->accent_color,
+            'logoDataUri' => Branding::logoDataUri(),
+            'headerText' => $branding->pdf_header_text,
+        ]);
+
+        $payment->addMediaFromString($pdf->output())
+            ->usingFileName(($payment->receipt_number ?? "receipt-{$payment->id}").'.pdf')
+            ->toMediaCollection('receipt');
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function transform(Payment $payment, bool $withTrashMeta = false): array
@@ -282,6 +438,7 @@ class PaymentController extends Controller
 
         return [
             'id' => $payment->id,
+            'receipt_number' => $payment->receipt_number,
             'reference' => $payment->reference,
             'amount' => (string) $payment->amount,
             'payment_date' => $payment->payment_date->toDateString(),

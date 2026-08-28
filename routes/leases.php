@@ -10,6 +10,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('leases/{lease}/edit', [LeaseController::class, 'edit'])->middleware('can:leases.edit')->name('leases.edit');
     Route::put('leases/{lease}', [LeaseController::class, 'update'])->middleware('can:leases.edit')->name('leases.update');
     Route::get('leases/{lease}', [LeaseController::class, 'show'])->middleware('can:leases.view')->name('leases.show');
+    Route::get('leases/{lease}/agreement', [LeaseController::class, 'agreement'])->middleware('can:leases.view')->name('leases.agreement');
+    Route::post('leases/{lease}/signatures', [LeaseController::class, 'storeSignature'])->middleware('can:leases.edit')->name('leases.signatures.store');
+    Route::post('leases/{lease}/signing-links', [LeaseController::class, 'sendSigningLink'])->middleware('can:leases.edit')->name('leases.signing-links.store');
     Route::delete('leases/{lease}', [LeaseController::class, 'destroy'])->middleware('can:leases.delete')->name('leases.destroy');
 
     Route::patch('leases/{lease}/restore', [LeaseController::class, 'restore'])

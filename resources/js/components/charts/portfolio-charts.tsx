@@ -1,13 +1,17 @@
+import { ChartLine, ChartPie } from 'lucide-react';
 import type { ReactNode } from 'react';
 import {
     Area,
     Bar,
     BarChart,
     CartesianGrid,
+    Cell,
     ComposedChart,
     LabelList,
     Legend,
     Line,
+    Pie,
+    PieChart,
     ResponsiveContainer,
     Tooltip as ChartTooltip,
     XAxis,
@@ -16,6 +20,7 @@ import {
 import { formatCurrency, formatCurrencyCompact } from '@/lib/currency';
 import type {
     CategoryBreakdownRow,
+    CollectionRateTrendPoint,
     LeaseStatusRow,
     MonthlyTrendPoint,
 } from '@/types/reports';
@@ -26,6 +31,17 @@ const LEASE_STATUS_CLASS: Record<string, string> = {
     ended: 'bg-secondary',
     terminated: 'bg-destructive',
 };
+
+// Fixed order, never cycled — identity color for up to 5 pie slices; a 6th+
+// category folds into a neutral "Other" bucket rather than generating a hue.
+const SERIES_COLORS = [
+    'var(--series-1)',
+    'var(--series-2)',
+    'var(--series-3)',
+    'var(--series-4)',
+    'var(--series-5)',
+];
+const OTHER_SLICE_COLOR = 'var(--text-tertiary)';
 
 function ChartCard({
     title,
@@ -361,6 +377,324 @@ export function LeaseStatusChart({ data }: { data: LeaseStatusRow[] }) {
                     </p>
                 )}
             </div>
+        </ChartCard>
+    );
+}
+
+/**
+ * A compact empty-state for the smaller Insights cards — icon + message,
+ * lighter-weight than the full-width chart empty states above.
+ */
+function InsightEmptyState({
+    icon: Icon,
+    message,
+}: {
+    icon: typeof ChartLine;
+    message: string;
+}) {
+    return (
+        <div className="flex h-full flex-col items-center justify-center gap-2 py-10 text-text-tertiary">
+            <Icon className="size-7 opacity-60" />
+            <p className="text-[13px]">{message}</p>
+        </div>
+    );
+}
+
+export function CollectionRateChart({
+    data,
+}: {
+    data: CollectionRateTrendPoint[];
+}) {
+    const hasData = data.some((point) => point.rate > 0);
+
+    return (
+        <ChartCard title="Collection rate" subtitle="Recent months">
+            {hasData ? (
+                <div className="h-[190px] px-2.5 pb-3.5">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <BarChart
+                            data={data}
+                            margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
+                        >
+                            <CartesianGrid
+                                vertical={false}
+                                stroke="var(--border)"
+                            />
+                            <XAxis
+                                dataKey="month"
+                                axisLine={false}
+                                tickLine={false}
+                                tick={{
+                                    fontSize: 10,
+                                    fill: 'var(--text-tertiary)',
+                                }}
+                                dy={8}
+                            />
+                            <YAxis
+                                domain={[0, 100]}
+                                axisLine={false}
+                                tickLine={false}
+                                width={34}
+                                tick={{
+                                    fontSize: 10,
+                                    fill: 'var(--text-tertiary)',
+                                }}
+                                tickFormatter={(value) => `${value}%`}
+                            />
+                            <ChartTooltip
+                                labelFormatter={(_, payload) =>
+                                    payload?.[0]?.payload?.full_month ?? ''
+                                }
+                                formatter={(
+                                    value:
+                                        | number
+                                        | string
+                                        | readonly (number | string)[]
+                                        | undefined,
+                                ) => [`${value}%`, 'Collection rate']}
+                                contentStyle={{
+                                    background: 'var(--popover)',
+                                    border: '1px solid var(--border)',
+                                    borderRadius: 8,
+                                    fontSize: 12,
+                                }}
+                            />
+                            <Bar
+                                dataKey="rate"
+                                fill="var(--accent-strong)"
+                                radius={[4, 4, 0, 0]}
+                                maxBarSize={28}
+                            />
+                        </BarChart>
+                    </ResponsiveContainer>
+                </div>
+            ) : (
+                <InsightEmptyState
+                    icon={ChartLine}
+                    message="Not enough data yet"
+                />
+            )}
+        </ChartCard>
+    );
+}
+
+export function IncomeExpenseMiniChart({
+    data,
+    currency,
+}: {
+    data: MonthlyTrendPoint[];
+    currency: string;
+}) {
+    const chartData = data.map((point) => ({
+        ...point,
+        income: Number(point.income),
+        expense: Number(point.expense),
+    }));
+    const hasData = chartData.some(
+        (point) => point.income > 0 || point.expense > 0,
+    );
+
+    return (
+        <ChartCard title="Income vs Expenses" subtitle="Recent months">
+            {hasData ? (
+                <div className="h-[190px] px-2.5 pb-3.5">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <ComposedChart
+                            data={chartData}
+                            margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
+                        >
+                            <CartesianGrid
+                                vertical={false}
+                                stroke="var(--border)"
+                            />
+                            <XAxis
+                                dataKey="month"
+                                axisLine={false}
+                                tickLine={false}
+                                tick={{
+                                    fontSize: 10,
+                                    fill: 'var(--text-tertiary)',
+                                }}
+                                dy={8}
+                            />
+                            <ChartTooltip
+                                labelFormatter={(_, payload) =>
+                                    payload?.[0]?.payload?.full_month ?? ''
+                                }
+                                formatter={(
+                                    value:
+                                        | number
+                                        | string
+                                        | readonly (number | string)[]
+                                        | undefined,
+                                    name: string | number | undefined,
+                                ) => [
+                                    formatCurrency(Number(value), currency),
+                                    name === 'income' ? 'Income' : 'Expenses',
+                                ]}
+                                contentStyle={{
+                                    background: 'var(--popover)',
+                                    border: '1px solid var(--border)',
+                                    borderRadius: 8,
+                                    fontSize: 12,
+                                }}
+                            />
+                            <Legend
+                                verticalAlign="top"
+                                align="right"
+                                height={20}
+                                iconType="plainline"
+                                wrapperStyle={{ fontSize: 11 }}
+                                formatter={(value) =>
+                                    value === 'income' ? 'Income' : 'Expenses'
+                                }
+                            />
+                            <Line
+                                type="monotone"
+                                dataKey="income"
+                                stroke="var(--success)"
+                                strokeWidth={2}
+                                dot={false}
+                                activeDot={{
+                                    r: 4,
+                                    stroke: 'var(--card)',
+                                    strokeWidth: 2,
+                                }}
+                            />
+                            <Line
+                                type="monotone"
+                                dataKey="expense"
+                                stroke="var(--destructive)"
+                                strokeWidth={2}
+                                strokeDasharray="5 4"
+                                dot={false}
+                                activeDot={{
+                                    r: 4,
+                                    stroke: 'var(--card)',
+                                    strokeWidth: 2,
+                                }}
+                            />
+                        </ComposedChart>
+                    </ResponsiveContainer>
+                </div>
+            ) : (
+                <InsightEmptyState
+                    icon={ChartLine}
+                    message="Not enough data yet"
+                />
+            )}
+        </ChartCard>
+    );
+}
+
+export function ExpensesByCategoryPie({
+    data,
+    currency,
+}: {
+    data: CategoryBreakdownRow[];
+    currency: string;
+}) {
+    const sorted = [...data].sort(
+        (a, b) => Number(b.amount) - Number(a.amount),
+    );
+    const top = sorted.slice(0, 5);
+    const rest = sorted.slice(5);
+    const otherTotal = rest.reduce((sum, row) => sum + Number(row.amount), 0);
+
+    const slices = [
+        ...top.map((row, i) => ({
+            name: row.category,
+            value: Number(row.amount),
+            color: SERIES_COLORS[i],
+        })),
+        // "Other categories" (not "Other") — a real category can itself be
+        // named "Other", and this overflow bucket must never collide with it.
+        ...(otherTotal > 0
+            ? [
+                  {
+                      name: 'Other categories',
+                      value: otherTotal,
+                      color: OTHER_SLICE_COLOR,
+                  },
+              ]
+            : []),
+    ];
+    const total = slices.reduce((sum, slice) => sum + slice.value, 0);
+
+    return (
+        <ChartCard title="Expenses by category" subtitle="Last 3 months">
+            {slices.length > 0 ? (
+                <div className="flex flex-col gap-3 px-[18px] pt-2 pb-[18px]">
+                    <div className="h-[140px]">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                                <ChartTooltip
+                                    formatter={(
+                                        value:
+                                            | number
+                                            | string
+                                            | readonly (number | string)[]
+                                            | undefined,
+                                        name: string | number | undefined,
+                                    ) => [
+                                        formatCurrency(Number(value), currency),
+                                        name,
+                                    ]}
+                                    contentStyle={{
+                                        background: 'var(--popover)',
+                                        border: '1px solid var(--border)',
+                                        borderRadius: 8,
+                                        fontSize: 12,
+                                    }}
+                                />
+                                <Pie
+                                    data={slices}
+                                    dataKey="value"
+                                    nameKey="name"
+                                    innerRadius="55%"
+                                    outerRadius="90%"
+                                    paddingAngle={2}
+                                    stroke="var(--card)"
+                                    strokeWidth={2}
+                                >
+                                    {slices.map((slice, i) => (
+                                        <Cell
+                                            key={`${slice.name}-${i}`}
+                                            fill={slice.color}
+                                        />
+                                    ))}
+                                </Pie>
+                            </PieChart>
+                        </ResponsiveContainer>
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                        {slices.map((slice, i) => (
+                            <div
+                                key={`${slice.name}-${i}`}
+                                className="flex items-center gap-2 text-[12px]"
+                            >
+                                <span
+                                    className="size-2.5 shrink-0 rounded-full"
+                                    style={{ background: slice.color }}
+                                />
+                                <span className="truncate text-text-secondary">
+                                    {slice.name}
+                                </span>
+                                <span className="ml-auto shrink-0 font-semibold text-foreground">
+                                    {total > 0
+                                        ? `${Math.round((slice.value / total) * 100)}%`
+                                        : '0%'}
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            ) : (
+                <InsightEmptyState
+                    icon={ChartPie}
+                    message="No expenses recorded yet"
+                />
+            )}
         </ChartCard>
     );
 }

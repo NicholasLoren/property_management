@@ -14,11 +14,14 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class ExpenseController extends Controller
 {
+    private const PERIODS = ['this_month', 'last_month', 'last_3_months', 'this_year', 'all_time'];
+
     public function __construct(private readonly CodeGenerator $codes) {}
 
     public function index(Request $request): Response
@@ -43,8 +46,13 @@ class ExpenseController extends Controller
                 $query->whereIn('category_id', $filters['categoryIds']);
             }
 
-            if ($filters['propertyIds'] !== []) {
-                $query->whereIn('property_id', $filters['propertyIds']);
+            if ($filters['property'] !== 'all') {
+                $query->where('property_id', $filters['property']);
+            }
+
+            if ($filters['period'] !== 'all_time') {
+                [$from, $to] = $this->periodRange($filters['period']);
+                $query->whereBetween('transaction_date', [$from->toDateString(), $to->toDateString()]);
             }
         }
 
@@ -70,7 +78,8 @@ class ExpenseController extends Controller
             'filters' => [
                 'search' => $filters['search'],
                 'category_id' => $filters['categoryIds'],
-                'property_id' => $filters['propertyIds'],
+                'property' => $filters['property'],
+                'period' => $filters['period'],
                 'sort' => $sort,
                 'dir' => $dir,
                 'per_page' => $perPage,
@@ -80,9 +89,13 @@ class ExpenseController extends Controller
                 'active' => $this->baseQuery('active')->count(),
                 'trash' => $this->baseQuery('trash')->count(),
             ],
-            'total' => (string) $this->baseQuery('active')->sum('amount'),
-            'categories' => $this->categoryOptions(),
-            'properties' => $this->propertyOptions(),
+            // Closures: skipped entirely on a partial reload that excludes
+            // them (search/sort/pagination/filter changes never affect any
+            // of these), rather than re-queried on every such request.
+            'total' => fn () => (string) $this->baseQuery('active')->sum('amount'),
+            'categories' => fn () => $this->categoryOptions(),
+            'properties' => fn () => $this->propertyOptions(),
+            'periods' => fn () => $this->periodOptions(),
         ]);
     }
 
@@ -99,15 +112,52 @@ class ExpenseController extends Controller
     }
 
     /**
-     * @return array{tab: string, search: string, categoryIds: array<int, string>, propertyIds: array<int, string>}
+     * @return array{tab: string, search: string, categoryIds: array<int, string>, property: string, period: string}
      */
     private function parseFilters(Request $request): array
     {
+        $property = $request->string('property', 'all')->value();
+        $period = $request->string('period', 'all_time')->value();
+
         return [
             'tab' => $request->string('tab', 'active')->value() === 'trash' ? 'trash' : 'active',
             'search' => $request->string('search')->trim()->value(),
             'categoryIds' => array_values(array_filter((array) $request->input('category_id', []))),
-            'propertyIds' => array_values(array_filter((array) $request->input('property_id', []))),
+            'property' => $property !== '' && ctype_digit($property) ? $property : 'all',
+            'period' => in_array($period, self::PERIODS, true) ? $period : 'all_time',
+        ];
+    }
+
+    /**
+     * @return array{0: Carbon, 1: Carbon}
+     */
+    private function periodRange(string $period): array
+    {
+        $now = Carbon::now();
+
+        return match ($period) {
+            'this_month' => [$now->copy()->startOfMonth(), $now->copy()->endOfMonth()],
+            'last_month' => [
+                $now->copy()->subMonthNoOverflow()->startOfMonth(),
+                $now->copy()->subMonthNoOverflow()->endOfMonth(),
+            ],
+            'last_3_months' => [$now->copy()->subMonthsNoOverflow(2)->startOfMonth(), $now->copy()->endOfMonth()],
+            'this_year' => [$now->copy()->startOfYear(), $now->copy()->endOfYear()],
+            default => [$now->copy()->startOfMonth(), $now->copy()->endOfMonth()],
+        };
+    }
+
+    /**
+     * @return array<int, array{value: string, label: string}>
+     */
+    private function periodOptions(): array
+    {
+        return [
+            ['value' => 'this_month', 'label' => 'This Month'],
+            ['value' => 'last_month', 'label' => 'Last Month'],
+            ['value' => 'last_3_months', 'label' => 'Last 3 Months'],
+            ['value' => 'this_year', 'label' => 'This Year'],
+            ['value' => 'all_time', 'label' => 'All Time'],
         ];
     }
 

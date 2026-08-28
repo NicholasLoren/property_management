@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Enums\IdentityDocumentType;
+use App\Enums\PartyType;
 use Database\Factories\TenantFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -24,26 +26,46 @@ use Spatie\MediaLibrary\InteractsWithMedia;
  *
  * @property int $id
  * @property string $name
+ * @property PartyType $type
  * @property string|null $email
  * @property string|null $phone
  * @property string|null $id_number
+ * @property string|null $tin
+ * @property IdentityDocumentType|null $id_document_type
  * @property string|null $address
  * @property string|null $notes
+ * @property string|null $contact_person_name
+ * @property string|null $contact_person_phone
+ * @property string|null $contact_person_email
  * @property Carbon|null $deleted_at
  * @property int|null $deleted_by
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['name', 'email', 'phone', 'id_number', 'address', 'notes'])]
+#[Fillable([
+    'name', 'type', 'email', 'phone', 'id_number', 'tin', 'id_document_type',
+    'address', 'notes', 'contact_person_name', 'contact_person_phone', 'contact_person_email',
+])]
 class Tenant extends Model implements HasMedia
 {
     /** @use HasFactory<TenantFactory> */
     use HasFactory, InteractsWithMedia, LogsActivity, SoftDeletes;
 
+    /**
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'type' => PartyType::class,
+            'id_document_type' => IdentityDocumentType::class,
+        ];
+    }
+
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['name', 'email', 'phone'])
+            ->logOnly(['name', 'type', 'email', 'phone'])
             ->logOnlyDirty()
             ->dontLogEmptyChanges()
             ->useLogName('tenant')

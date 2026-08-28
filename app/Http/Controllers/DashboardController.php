@@ -12,9 +12,14 @@ use App\Models\Lease;
 use App\Models\MaintenanceRequest;
 use App\Models\Payment;
 use App\Models\PaymentSchedule;
+use App\Models\Property;
+use App\Models\Transaction;
 use App\Models\Unit;
 use App\Models\User;
 use App\Services\PortfolioMetrics;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -30,12 +35,24 @@ class DashboardController extends Controller
 
     private const RENEWALS_LIMIT = 8;
 
+    private const EXPIRING_LEASE_DAYS = 90;
+
+    private const NEEDS_ATTENTION_LIMIT = 5;
+
+    private const COLLECTION_RATE_MONTHS = 6;
+
     public function __construct(private readonly PortfolioMetrics $metrics) {}
 
-    public function show(): Response
+    public function show(Request $request): Response
     {
         $monthStart = Carbon::now()->startOfMonth();
         $now = Carbon::now();
+        $propertyId = $request->integer('property_id') ?: null;
+
+        // The portfolio-wide widgets below always use null regardless of the
+        // filter; when no property is selected the new Insights trend wants
+        // that exact same series, so reuse it instead of computing it twice.
+        $monthlyTrendAll = $this->metrics->monthlyTrend(null);
 
         return Inertia::render('dashboard', [
             'kpis' => [
@@ -44,14 +61,320 @@ class DashboardController extends Controller
                 ...$this->overdueKpis(),
                 ...$this->maintenanceKpis(),
             ],
-            'monthly_trend' => $this->metrics->monthlyTrend(null),
+            'monthly_trend' => $monthlyTrendAll,
             'expense_by_category' => $this->metrics->categoryBreakdown(TransactionType::Expense, null, $monthStart, $now),
             'income_by_category' => $this->metrics->categoryBreakdown(TransactionType::Income, null, $monthStart, $now),
             'lease_status_distribution' => $this->metrics->leaseStatusDistribution(null),
             'upcoming_renewals' => $this->upcomingRenewals(),
             'activity' => $this->recentActivity(),
             'open_maintenance' => $this->openMaintenance(),
+
+            // Overview section — property-filterable, unlike the
+            // portfolio-wide widgets above.
+            'overview_filters' => [
+                'property_id' => $propertyId !== null ? (string) $propertyId : null,
+            ],
+            // Closure: skipped on a partial reload that excludes it — the
+            // property filter's own selection changes never change the
+            // option list itself, so there's no reason to resend/requery it.
+            'properties' => fn () => $this->propertyOptions(),
+            'overview' => $this->overviewKpis($propertyId),
+            'collection_rate_trend' => $this->collectionRateTrend($propertyId),
+            'income_vs_expenses_recent' => $propertyId === null
+                ? $monthlyTrendAll
+                : $this->metrics->monthlyTrend($propertyId),
+            'expenses_by_category_recent' => $this->metrics->categoryBreakdown(
+                TransactionType::Expense,
+                $propertyId,
+                Carbon::now()->subMonthsNoOverflow(2)->startOfMonth(),
+                $now,
+            ),
+            'by_property' => $this->byPropertyRows($propertyId),
+            'needs_attention' => [
+                'overdue_tenants' => $this->overdueTenantsList($propertyId),
+                'expiring_leases' => $this->expiringLeasesList($propertyId),
+                'vacant_units' => $this->vacantUnitsList($propertyId),
+            ],
         ]);
+    }
+
+    /**
+     * @return array<int, array{value: string, label: string}>
+     */
+    private function propertyOptions(): array
+    {
+        return Property::query()
+            ->orderBy('name')
+            ->get(['id', 'name'])
+            ->map(fn (Property $property): array => ['value' => (string) $property->id, 'label' => $property->name])
+            ->all();
+    }
+
+    /**
+     * @return array{year: int, net_profit: string, income: string, expenses: string}
+     */
+    private function overviewKpis(?int $propertyId): array
+    {
+        $yearStart = Carbon::now()->startOfYear();
+        $now = Carbon::now();
+
+        $rentCollected = (float) $this->scopeByProperty(
+            Payment::query()
+                ->where('status', PaymentStatus::Completed->value)
+                ->whereBetween('payment_date', [$yearStart->toDateString(), $now->toDateString()]),
+            $propertyId,
+        )->sum('amount');
+
+        $otherIncome = collect($this->metrics->categoryBreakdown(TransactionType::Income, $propertyId, $yearStart, $now))
+            ->sum(fn (array $row) => (float) $row['amount']);
+
+        $expenses = collect($this->metrics->categoryBreakdown(TransactionType::Expense, $propertyId, $yearStart, $now))
+            ->sum(fn (array $row) => (float) $row['amount']);
+
+        $income = $rentCollected + $otherIncome;
+
+        return [
+            'year' => $yearStart->year,
+            'net_profit' => (string) ($income - $expenses),
+            'income' => (string) $income,
+            'expenses' => (string) $expenses,
+        ];
+    }
+
+    /**
+     * Trailing months' billed-vs-collected rate — a property-filterable
+     * sibling to the portfolio-wide rentCollectionReport() on the Reports
+     * page, but shaped as a short trend rather than a per-property table row.
+     *
+     * @return array<int, array{month: string, full_month: string, rate: float}>
+     */
+    private function collectionRateTrend(?int $propertyId): array
+    {
+        $months = collect(range(self::COLLECTION_RATE_MONTHS - 1, 0))
+            ->map(fn (int $i) => Carbon::now()->subMonthsNoOverflow($i)->startOfMonth());
+
+        return $months->map(function (Carbon $month) use ($propertyId) {
+            $monthEnd = $month->copy()->endOfMonth();
+
+            $billedQuery = PaymentSchedule::query()
+                ->whereBetween('period_start', [$month->toDateString(), $monthEnd->toDateString()]);
+
+            if ($propertyId !== null) {
+                $billedQuery->whereHas('lease.unit', fn (Builder $q) => $q->where('property_id', $propertyId));
+            }
+
+            $collectedQuery = $this->scopeByProperty(
+                Payment::query()
+                    ->where('status', PaymentStatus::Completed->value)
+                    ->whereBetween('payment_date', [$month->toDateString(), $monthEnd->toDateString()]),
+                $propertyId,
+            );
+
+            $billed = (float) $billedQuery->sum('amount_expected');
+            $collected = (float) $collectedQuery->sum('amount');
+
+            return [
+                'month' => $month->format('M'),
+                'full_month' => $month->format('M Y'),
+                'rate' => $billed > 0 ? round($collected / $billed * 100, 1) : 0.0,
+            ];
+        })->values()->all();
+    }
+
+    /**
+     * @return array<int, array{id: int, name: string, occupancy_rate: float, income: string, overdue: string}>
+     */
+    private function byPropertyRows(?int $propertyId): array
+    {
+        $yearStart = Carbon::now()->startOfYear();
+        $now = Carbon::now();
+
+        // One grouped query for unit occupancy counts, rather than two
+        // Unit::count() queries per property (avoids an N+1 across the portfolio).
+        $unitCounts = Unit::query()->toBase()
+            ->selectRaw('property_id, status, count(*) as count')
+            ->groupBy('property_id', 'status')
+            ->get()
+            ->groupBy('property_id');
+
+        // One grouped query for overdue balances, rather than one per property.
+        $overdueByProperty = PaymentSchedule::overdue()
+            ->withSum(
+                ['payments as paid_amount' => fn (Builder $q) => $q->where('status', PaymentStatus::Completed->value)],
+                'amount',
+            )
+            ->with('lease.unit')
+            ->get()
+            ->groupBy(fn (PaymentSchedule $schedule) => $schedule->lease?->unit?->property_id)
+            ->map(fn ($group) => $group->sum(
+                fn (PaymentSchedule $schedule) => max(0.0, (float) $schedule->amount_expected - (float) ($schedule->paid_amount ?? 0)),
+            ));
+
+        // Two grouped queries (rent + other income), rather than two per
+        // property — this portfolio can have hundreds of properties, so a
+        // per-property Payment::sum()/categoryBreakdown() pair here would be
+        // an N+1 that turns this page into a multi-second (or worse) load.
+        $rentByProperty = Payment::query()
+            ->join('leases', 'leases.id', '=', 'payments.lease_id')
+            ->join('units', 'units.id', '=', 'leases.unit_id')
+            ->where('payments.status', PaymentStatus::Completed->value)
+            ->whereBetween('payments.payment_date', [$yearStart->toDateString(), $now->toDateString()])
+            ->selectRaw('units.property_id as property_id, sum(payments.amount) as total')
+            ->groupBy('units.property_id')
+            ->pluck('total', 'property_id');
+
+        $otherIncomeByProperty = Transaction::query()
+            ->where('type', TransactionType::Income->value)
+            ->whereBetween('transaction_date', [$yearStart->toDateString(), $now->toDateString()])
+            ->selectRaw('property_id, sum(amount) as total')
+            ->groupBy('property_id')
+            ->pluck('total', 'property_id');
+
+        return Property::query()
+            ->when($propertyId !== null, fn (Builder $q) => $q->whereKey($propertyId))
+            ->orderBy('name')
+            ->get()
+            ->map(function (Property $property) use ($unitCounts, $overdueByProperty, $rentByProperty, $otherIncomeByProperty): array {
+                $counts = $unitCounts->get($property->id, collect());
+                $total = (int) $counts->sum('count');
+                $occupied = (int) ($counts->firstWhere('status', UnitStatus::Occupied->value)->count ?? 0);
+
+                $income = (float) ($rentByProperty->get($property->id) ?? 0)
+                    + (float) ($otherIncomeByProperty->get($property->id) ?? 0);
+
+                return [
+                    'id' => $property->id,
+                    'name' => $property->name,
+                    'occupancy_rate' => $total > 0 ? round($occupied / $total * 100, 1) : 0.0,
+                    'income' => (string) $income,
+                    'overdue' => (string) ((float) ($overdueByProperty->get($property->id) ?? 0)),
+                ];
+            })
+            ->all();
+    }
+
+    /**
+     * @return array<int, array{id: int, name: string, property_name: string|null, unit_name: string|null, overdue: string}>
+     */
+    private function overdueTenantsList(?int $propertyId): array
+    {
+        $query = PaymentSchedule::overdue()
+            ->withSum(
+                ['payments as paid_amount' => fn (Builder $q) => $q->where('status', PaymentStatus::Completed->value)],
+                'amount',
+            )
+            ->with(['lease.unit.property', 'lease.tenants']);
+
+        if ($propertyId !== null) {
+            $query->whereHas('lease.unit', fn (Builder $q) => $q->where('property_id', $propertyId));
+        }
+
+        /** @var array<int, array{id: int, name: string, property_name: string|null, unit_name: string|null, overdue: float}> $byTenant */
+        $byTenant = [];
+
+        foreach ($query->get() as $schedule) {
+            $balance = max(0.0, (float) $schedule->amount_expected - (float) ($schedule->paid_amount ?? 0));
+
+            foreach ($schedule->lease?->tenants ?? [] as $tenant) {
+                $byTenant[$tenant->id] ??= [
+                    'id' => $tenant->id,
+                    'name' => $tenant->name,
+                    'property_name' => $schedule->lease?->unit?->property?->name,
+                    'unit_name' => $schedule->lease?->unit?->name,
+                    'overdue' => 0.0,
+                ];
+                $byTenant[$tenant->id]['overdue'] += $balance;
+            }
+        }
+
+        return collect($byTenant)
+            ->sortByDesc('overdue')
+            ->take(self::NEEDS_ATTENTION_LIMIT)
+            ->values()
+            ->map(fn (array $row): array => [...$row, 'overdue' => (string) $row['overdue']])
+            ->all();
+    }
+
+    /**
+     * @return array<int, array{id: int, unit_name: string|null, property_name: string|null, tenant_names: array<int, string>, end_date: string, days_remaining: int}>
+     */
+    private function expiringLeasesList(?int $propertyId): array
+    {
+        $today = Carbon::today();
+        $horizon = $today->copy()->addDays(self::EXPIRING_LEASE_DAYS);
+
+        $query = Lease::query()
+            ->where('status', LeaseStatus::Active->value)
+            ->whereBetween('end_date', [$today->toDateString(), $horizon->toDateString()])
+            ->with(['unit.property', 'tenants']);
+
+        if ($propertyId !== null) {
+            $query->whereHas('unit', fn (Builder $q) => $q->where('property_id', $propertyId));
+        }
+
+        return $query->orderBy('end_date')
+            ->limit(self::NEEDS_ATTENTION_LIMIT)
+            ->get()
+            ->map(fn (Lease $lease): array => [
+                'id' => $lease->id,
+                'unit_name' => $lease->unit?->name,
+                'property_name' => $lease->unit?->property?->name,
+                'tenant_names' => $lease->tenants->pluck('name')->all(),
+                'end_date' => $lease->end_date->toDateString(),
+                'days_remaining' => $today->diffInDays($lease->end_date),
+            ])
+            ->all();
+    }
+
+    /**
+     * @return array<int, array{id: int, property_id: int, name: string, property_name: string|null, vacancy_label: string, potential_rent: string|null}>
+     */
+    private function vacantUnitsList(?int $propertyId): array
+    {
+        $query = Unit::query()
+            ->where('status', UnitStatus::Vacant->value)
+            ->with(['property', 'currentPrice', 'leases']);
+
+        if ($propertyId !== null) {
+            $query->where('property_id', $propertyId);
+        }
+
+        return $query->orderBy('name')
+            ->limit(self::NEEDS_ATTENTION_LIMIT)
+            ->get()
+            ->map(function (Unit $unit): array {
+                // A unit's own history is the only source of "since when" —
+                // no separate vacated_at column exists, so the most recent
+                // lease's end date (if any) stands in for it.
+                $lastLease = $unit->leases->sortByDesc('end_date')->first();
+
+                return [
+                    'id' => $unit->id,
+                    'property_id' => $unit->property_id,
+                    'name' => $unit->name,
+                    'property_name' => $unit->property?->name,
+                    'vacancy_label' => $lastLease === null
+                        ? 'Never occupied'
+                        : 'Vacant since '.$lastLease->end_date->toDateString(),
+                    'potential_rent' => $unit->currentPrice !== null ? (string) $unit->currentPrice->amount : null,
+                ];
+            })
+            ->all();
+    }
+
+    /**
+     * @template TModel of Model
+     *
+     * @param  Builder<TModel>  $query
+     * @return Builder<TModel>
+     */
+    private function scopeByProperty(Builder $query, ?int $propertyId): Builder
+    {
+        if ($propertyId !== null) {
+            $query->whereHas('lease.unit', fn (Builder $q) => $q->where('property_id', $propertyId));
+        }
+
+        return $query;
     }
 
     /**

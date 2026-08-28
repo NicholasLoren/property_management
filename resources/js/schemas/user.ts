@@ -33,7 +33,18 @@ export const userSchema = z.object({
             'Password must be at least 8 characters.',
         ),
     password_confirmation: z.string().optional(),
+    landlord_type: z.enum(['individual', 'company']).optional(),
     landlord_id_number: z.string().max(255).optional().nullable(),
+    landlord_tin: z.string().max(255).optional().nullable(),
+    landlord_id_document_type: z
+        .enum([
+            'national_id',
+            'passport',
+            'company_registration_certificate',
+            'other',
+        ])
+        .optional()
+        .nullable(),
     landlord_address: z.string().max(255).optional().nullable(),
     landlord_phone: phoneField,
     landlord_notes: z.string().max(2000).optional().nullable(),

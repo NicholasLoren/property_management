@@ -6,6 +6,7 @@ import {
     Folder,
     Hash,
     MessageSquare,
+    ShieldCheck,
     Trash2,
 } from 'lucide-react';
 import { useState } from 'react';
@@ -36,6 +37,7 @@ import {
     billingSettingsSchema,
     brandingSettingsSchema,
     codesSettingsSchema,
+    complianceSettingsSchema,
     generalSettingsSchema,
     notificationSettingsSchema,
     smsSettingsSchema,
@@ -49,6 +51,7 @@ type SectionKey =
     | 'notifications'
     | 'billing'
     | 'codes'
+    | 'compliance'
     | 'trash';
 
 const SECTIONS: {
@@ -62,6 +65,7 @@ const SECTIONS: {
     { key: 'notifications', label: 'Notifications', icon: Bell },
     { key: 'billing', label: 'Billing & reminders', icon: CalendarClock },
     { key: 'codes', label: 'Codes', icon: Hash },
+    { key: 'compliance', label: 'Compliance', icon: ShieldCheck },
     { key: 'trash', label: 'Trash & data', icon: Trash2 },
 ];
 
@@ -114,6 +118,13 @@ type PageProps = {
         expense_template: string;
         income_prefix: string;
         income_template: string;
+        lease_prefix: string;
+        lease_template: string;
+        receipt_prefix: string;
+        receipt_template: string;
+    };
+    compliance: {
+        enabled: boolean;
     };
 };
 
@@ -125,6 +136,7 @@ export default function CompanySettings({
     notifications,
     billing,
     codes,
+    compliance,
     timezones,
 }: PageProps) {
     return (
@@ -185,6 +197,9 @@ export default function CompanySettings({
                         <BillingSection billing={billing} />
                     )}
                     {section === 'codes' && <CodesSection codes={codes} />}
+                    {section === 'compliance' && (
+                        <ComplianceSection compliance={compliance} />
+                    )}
                     {section === 'trash' && <TrashSection general={general} />}
                 </div>
             </div>
@@ -834,6 +849,8 @@ const CODE_TYPES: { key: string; label: string; example: string }[] = [
     },
     { key: 'expense', label: 'Expenses', example: 'e.g. Water bill' },
     { key: 'income', label: 'Income', example: 'e.g. Parking fee' },
+    { key: 'lease', label: 'Leases', example: 'e.g. Lease #42' },
+    { key: 'receipt', label: 'Receipts', example: 'e.g. Payment receipt' },
 ];
 
 /**
@@ -884,7 +901,7 @@ function CodesSection({ codes }: { codes: PageProps['codes'] }) {
         <form onSubmit={handleSubmit} noValidate>
             <SettingsCard
                 title="Code formats"
-                description="Every Property, Unit, Document, Expense, and Income record gets a unique, searchable code when it's created. Pick a prefix and a template for each."
+                description="Every Property, Unit, Document, Expense, Income, Lease, and Receipt record gets a unique, searchable code when it's created. Pick a prefix and a template for each."
             >
                 <div className="mb-4 rounded-lg border border-border-soft bg-secondary/50 p-3 text-xs text-text-secondary">
                     <span className="font-semibold text-foreground">
@@ -979,6 +996,50 @@ function CodesSection({ codes }: { codes: PageProps['codes'] }) {
                         );
                     })}
                 </div>
+            </SettingsCard>
+
+            <div className="flex justify-end">
+                <Button type="submit" disabled={processing}>
+                    {processing && <Spinner />}
+                    Save
+                </Button>
+            </div>
+        </form>
+    );
+}
+
+function ComplianceSection({
+    compliance,
+}: {
+    compliance: PageProps['compliance'];
+}) {
+    const { data, setField, processing, submit } = useInertiaZodForm(
+        complianceSettingsSchema,
+        compliance,
+    );
+
+    function handleSubmit(e: FormEvent) {
+        e.preventDefault();
+        submit('patch', companySettings.updateCompliance().url);
+    }
+
+    return (
+        <form onSubmit={handleSubmit} noValidate>
+            <SettingsCard
+                title="Government & tax data"
+                description="Not a live connection to any government system — this only controls whether tenant and landlord forms ask for TIN, registration number, and identity-document type, for your own tax and compliance record-keeping."
+            >
+                <SettingsRow
+                    label="Enable compliance fields"
+                    description="Show TIN, company registration, and identity-document type fields on tenant and landlord forms."
+                >
+                    <Switch
+                        checked={data.enabled}
+                        onCheckedChange={(checked) =>
+                            setField('enabled', checked)
+                        }
+                    />
+                </SettingsRow>
             </SettingsCard>
 
             <div className="flex justify-end">

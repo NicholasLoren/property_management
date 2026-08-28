@@ -73,6 +73,10 @@ export const testSmsSchema = z.object({
     phone: requiredPhoneField,
 });
 
+export const complianceSettingsSchema = z.object({
+    enabled: z.boolean(),
+});
+
 const codePrefixField = z
     .string()
     .trim()
@@ -97,4 +101,8 @@ export const codesSettingsSchema = z.object({
     expense_template: codeTemplateField,
     income_prefix: codePrefixField,
     income_template: codeTemplateField,
+    lease_prefix: codePrefixField,
+    lease_template: codeTemplateField,
+    receipt_prefix: codePrefixField,
+    receipt_template: codeTemplateField,
 });

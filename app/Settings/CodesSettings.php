@@ -26,6 +26,14 @@ class CodesSettings extends Settings
 
     public string $income_template;
 
+    public string $lease_prefix;
+
+    public string $lease_template;
+
+    public string $receipt_prefix;
+
+    public string $receipt_template;
+
     public static function group(): string
     {
         return 'codes';

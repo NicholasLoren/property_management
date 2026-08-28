@@ -4,22 +4,39 @@ import {
     Banknote,
     Calendar,
     CalendarClock,
+    CheckCircle2,
+    Download,
     FileText,
+    Mail,
     Pencil,
+    PenLine,
     Wallet,
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Breadcrumbs } from '@/components/breadcrumbs';
 import { DataTable } from '@/components/data-table/data-table';
 import type { DataTablePaginationMeta } from '@/components/data-table/data-table-pagination';
+import { SignaturePad } from '@/components/signature-pad';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogTitle,
+} from '@/components/ui/dialog';
 import { EntityAvatar } from '@/components/ui/entity-avatar';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Spinner } from '@/components/ui/spinner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { usePermissions } from '@/hooks/use-permissions';
 import { formatCurrency } from '@/lib/currency';
 import { formatDate } from '@/lib/datetime';
 import leases from '@/routes/leases';
+import leaseSignatures from '@/routes/leases/signatures';
+import leaseSigningLinks from '@/routes/leases/signing-links';
 import payments from '@/routes/payments';
 import tenants from '@/routes/tenants';
 import type { LeaseDocument } from '@/types/leases';
@@ -29,6 +46,19 @@ type LeaseTenant = {
     name: string;
     email: string | null;
     phone: string | null;
+};
+
+type LeaseLandlord = {
+    id: number;
+    name: string;
+};
+
+type LeaseSignatureRow = {
+    id: number;
+    signer_role: 'landlord' | 'tenant';
+    tenant_id: number | null;
+    signer_name: string;
+    signed_at: string;
 };
 
 type LeasePayment = {
@@ -48,8 +78,11 @@ type LeasePaymentsSummary = {
 
 type LeaseShowRow = {
     id: number;
+    lease_number: string | null;
     unit: { id: number; name: string; property_name: string | null } | null;
+    landlord: LeaseLandlord | null;
     tenants: LeaseTenant[];
+    signatures: LeaseSignatureRow[];
     start_date: string;
     end_date: string;
     rent_amount: string;
@@ -199,6 +232,227 @@ function StatTile({
     );
 }
 
+type SignTarget = {
+    role: 'landlord' | 'tenant';
+    tenantId?: number;
+    label: string;
+};
+
+function SignatureRow({
+    label,
+    sublabel,
+    signature,
+    timezone,
+    canEdit,
+    onSign,
+    onSendLink,
+}: {
+    label: string;
+    sublabel?: string | null;
+    signature: LeaseSignatureRow | undefined;
+    timezone: string;
+    canEdit: boolean;
+    onSign: () => void;
+    onSendLink?: () => void;
+}) {
+    return (
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-border-soft px-3 py-2.5">
+            <div className="min-w-0">
+                <div className="truncate text-[13px] font-semibold text-foreground">
+                    {label}
+                </div>
+                <div className="truncate text-xs text-text-tertiary">
+                    {signature ? (
+                        <span className="inline-flex items-center gap-1 text-success">
+                            <CheckCircle2 className="size-3.5" />
+                            Signed {formatDate(signature.signed_at, timezone)}
+                        </span>
+                    ) : (
+                        (sublabel ?? 'Not yet signed')
+                    )}
+                </div>
+            </div>
+            {canEdit && !signature && (
+                <div className="flex shrink-0 items-center gap-2">
+                    {onSendLink && (
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={onSendLink}
+                        >
+                            <Mail className="size-3.5" />
+                            Send link
+                        </Button>
+                    )}
+                    <Button variant="outline" size="sm" onClick={onSign}>
+                        <PenLine className="size-3.5" />
+                        Sign now
+                    </Button>
+                </div>
+            )}
+        </div>
+    );
+}
+
+function SignaturesPanel({
+    lease,
+    timezone,
+    canEdit,
+}: {
+    lease: LeaseShowRow;
+    timezone: string;
+    canEdit: boolean;
+}) {
+    const [target, setTarget] = useState<SignTarget | null>(null);
+    const [signatureImage, setSignatureImage] = useState<string | null>(null);
+    const [signerName, setSignerName] = useState('');
+    const [submitting, setSubmitting] = useState(false);
+
+    const landlordSignature = lease.signatures.find(
+        (s) => s.signer_role === 'landlord',
+    );
+
+    function openDialog(target: SignTarget, defaultName: string) {
+        setTarget(target);
+        setSignerName(defaultName);
+        setSignatureImage(null);
+    }
+
+    function closeDialog() {
+        setTarget(null);
+        setSignatureImage(null);
+        setSignerName('');
+    }
+
+    function submitSignature() {
+        if (!target || !signatureImage || !signerName.trim()) {
+            return;
+        }
+
+        setSubmitting(true);
+        router.post(
+            leaseSignatures.store(lease).url,
+            {
+                signer_role: target.role,
+                tenant_id: target.tenantId ?? null,
+                signer_name: signerName.trim(),
+                signature_image: signatureImage,
+            },
+            {
+                preserveScroll: true,
+                onSuccess: () => closeDialog(),
+                onFinish: () => setSubmitting(false),
+            },
+        );
+    }
+
+    function sendLink(tenantId: number) {
+        router.post(
+            leaseSigningLinks.store(lease).url,
+            { tenant_id: tenantId },
+            { preserveScroll: true },
+        );
+    }
+
+    return (
+        <div className="mt-4 rounded-[14px] border border-border-soft bg-card p-5 shadow-sm">
+            <h2 className="mb-3 text-[13px] font-semibold text-text-secondary">
+                Signatures
+            </h2>
+            <div className="grid gap-2">
+                <SignatureRow
+                    label={`Landlord — ${lease.landlord?.name ?? '—'}`}
+                    signature={landlordSignature}
+                    timezone={timezone}
+                    canEdit={canEdit && lease.landlord !== null}
+                    onSign={() =>
+                        openDialog(
+                            { role: 'landlord', label: 'Landlord' },
+                            lease.landlord?.name ?? '',
+                        )
+                    }
+                />
+                {lease.tenants.map((tenant) => {
+                    const signature = lease.signatures.find(
+                        (s) =>
+                            s.signer_role === 'tenant' &&
+                            s.tenant_id === tenant.id,
+                    );
+
+                    return (
+                        <SignatureRow
+                            key={tenant.id}
+                            label={`Tenant — ${tenant.name}`}
+                            sublabel={
+                                !tenant.email && !tenant.phone
+                                    ? 'Not yet signed (no email/phone on file for a remote link)'
+                                    : undefined
+                            }
+                            signature={signature}
+                            timezone={timezone}
+                            canEdit={canEdit}
+                            onSign={() =>
+                                openDialog(
+                                    {
+                                        role: 'tenant',
+                                        tenantId: tenant.id,
+                                        label: tenant.name,
+                                    },
+                                    tenant.name,
+                                )
+                            }
+                            onSendLink={() => sendLink(tenant.id)}
+                        />
+                    );
+                })}
+            </div>
+
+            <Dialog
+                open={target !== null}
+                onOpenChange={(open) => !open && closeDialog()}
+            >
+                <DialogContent>
+                    <DialogTitle>Sign as {target?.label}</DialogTitle>
+                    <DialogDescription>
+                        This records a witnessed, in-person signature against
+                        this lease.
+                    </DialogDescription>
+
+                    <div className="flex flex-col gap-4">
+                        <div className="flex flex-col gap-1.5">
+                            <Label htmlFor="signer_name">Signer name</Label>
+                            <Input
+                                id="signer_name"
+                                value={signerName}
+                                onChange={(e) => setSignerName(e.target.value)}
+                            />
+                        </div>
+
+                        <SignaturePad onChange={setSignatureImage} />
+                    </div>
+
+                    <DialogFooter className="gap-2">
+                        <Button variant="secondary" onClick={closeDialog}>
+                            Cancel
+                        </Button>
+                        <Button
+                            disabled={
+                                !signatureImage ||
+                                !signerName.trim() ||
+                                submitting
+                            }
+                            onClick={submitSignature}
+                        >
+                            {submitting && <Spinner />}
+                            Save signature
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+        </div>
+    );
+}
+
 export default function LeaseShow({
     lease,
     scheduleFilters,
@@ -296,6 +550,11 @@ export default function LeaseShow({
                         <Badge className={STATUS_BADGE_CLASS[lease.status]}>
                             {lease.status_label}
                         </Badge>
+                        {lease.lease_number && (
+                            <span className="text-[13px] font-medium text-text-secondary">
+                                {lease.lease_number}
+                            </span>
+                        )}
                         <span className="inline-flex items-center gap-1.5 text-[13px] text-text-secondary">
                             <Calendar className="size-3.5 text-text-tertiary" />
                             {formatDate(lease.start_date, timezone)} –{' '}
@@ -303,14 +562,26 @@ export default function LeaseShow({
                         </span>
                     </div>
                 </div>
-                {can('leases.edit') && (
+                <div className="flex items-center gap-2">
                     <Button variant="outline" asChild>
-                        <Link href={leases.edit(lease)}>
-                            <Pencil className="size-[15px]" />
-                            Edit
-                        </Link>
+                        <a
+                            href={leases.agreement(lease).url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                        >
+                            <Download className="size-[15px]" />
+                            Download agreement
+                        </a>
                     </Button>
-                )}
+                    {can('leases.edit') && (
+                        <Button variant="outline" asChild>
+                            <Link href={leases.edit(lease)}>
+                                <Pencil className="size-[15px]" />
+                                Edit
+                            </Link>
+                        </Button>
+                    )}
+                </div>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-4">
@@ -435,6 +706,12 @@ export default function LeaseShow({
                     )}
                 </div>
             </div>
+
+            <SignaturesPanel
+                lease={lease}
+                timezone={timezone}
+                canEdit={can('leases.edit')}
+            />
 
             <div className="mt-4 rounded-[14px] border border-border-soft bg-card p-5 shadow-sm">
                 <Tabs

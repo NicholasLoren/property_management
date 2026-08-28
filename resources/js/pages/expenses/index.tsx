@@ -1,18 +1,17 @@
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import { Filter, Plus, Search, TrendingDown, X } from 'lucide-react';
+import { Plus, Search, TrendingDown, X } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { DataTable } from '@/components/data-table/data-table';
-import { Button } from '@/components/ui/button';
 import {
-    DropdownMenu,
-    DropdownMenuCheckboxItem,
-    DropdownMenuContent,
-    DropdownMenuLabel,
-    DropdownMenuSeparator,
-    DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+    FilterField,
+    FilterMultiPillGroup,
+    FilterPillGroup,
+    FilterSheet,
+} from '@/components/filter-sheet';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { usePermissions } from '@/hooks/use-permissions';
 import { formatCurrency } from '@/lib/currency';
 import { cn } from '@/lib/utils';
@@ -30,6 +29,19 @@ import type { ExpenseRow } from '@/types/transactions';
 
 type Option = { value: string; label: string };
 
+type FilterKey = 'property' | 'period';
+
+type Filters = {
+    search: string;
+    category_id: string[];
+    property: string;
+    period: string;
+    sort: string;
+    dir: 'asc' | 'desc';
+    per_page: number;
+    tab: 'active' | 'trash';
+};
+
 type PageProps = {
     expenses: {
         data: (ActiveExpenseRow | TrashExpenseRow)[];
@@ -42,19 +54,17 @@ type PageProps = {
             to: number | null;
         };
     };
-    filters: {
-        search: string;
-        category_id: string[];
-        property_id: string[];
-        sort: string;
-        dir: 'asc' | 'desc';
-        per_page: number;
-        tab: 'active' | 'trash';
-    };
+    filters: Filters;
     counts: { active: number; trash: number };
     total: string;
     categories: Option[];
     properties: Option[];
+    periods: Option[];
+};
+
+const EMPTY_SINGLE_DRAFT: Pick<Filters, FilterKey> = {
+    property: 'all',
+    period: 'all_time',
 };
 
 export default function ExpensesIndex({
@@ -64,6 +74,7 @@ export default function ExpensesIndex({
     total,
     categories,
     properties,
+    periods,
 }: PageProps) {
     const { currency } = usePage().props;
     const { can } = usePermissions();
@@ -73,13 +84,21 @@ export default function ExpensesIndex({
     const [viewingExpenseId, setViewingExpenseId] = useState<number | null>(
         null,
     );
+    const [filterSheetOpen, setFilterSheetOpen] = useState(false);
+    const [draft, setDraft] = useState<
+        Pick<Filters, FilterKey | 'category_id'>
+    >({
+        property: filters.property,
+        period: filters.period,
+        category_id: filters.category_id,
+    });
 
     if (filters.search !== syncedSearch) {
         setSyncedSearch(filters.search);
         setSearch(filters.search);
     }
 
-    function reload(partial: Partial<typeof filters>) {
+    function reload(partial: Partial<Filters>) {
         const next = { ...filters, ...partial };
 
         router.get(
@@ -89,15 +108,21 @@ export default function ExpensesIndex({
                 category_id: next.category_id.length
                     ? next.category_id
                     : undefined,
-                property_id: next.property_id.length
-                    ? next.property_id
-                    : undefined,
+                property: next.property !== 'all' ? next.property : undefined,
+                period: next.period !== 'all_time' ? next.period : undefined,
                 sort: next.sort,
                 dir: next.dir,
                 per_page: next.per_page,
                 tab: next.tab,
             },
-            { preserveState: true, preserveScroll: true, replace: true },
+            {
+                preserveState: true,
+                preserveScroll: true,
+                replace: true,
+                // None of these requests change the option lists or the
+                // grand-total figure — skip re-fetching those every time.
+                only: ['expenses', 'filters', 'counts'],
+            },
         );
     }
 
@@ -120,19 +145,36 @@ export default function ExpensesIndex({
         reload({ category_id });
     }
 
-    function togglePropertyFilter(value: string, checked: boolean) {
-        const property_id = checked
-            ? [...filters.property_id, value]
-            : filters.property_id.filter((p) => p !== value);
-        reload({ property_id });
-    }
-
     function clearAllFilters() {
-        reload({ category_id: [], property_id: [] });
+        reload({ category_id: [], ...EMPTY_SINGLE_DRAFT });
     }
 
     function switchTab(tab: 'active' | 'trash') {
-        reload({ tab, category_id: [], property_id: [], search: '' });
+        reload({ tab, search: '', category_id: [], ...EMPTY_SINGLE_DRAFT });
+    }
+
+    function openFilterSheet(open: boolean) {
+        if (open) {
+            setDraft({
+                property: filters.property,
+                period: filters.period,
+                category_id: filters.category_id,
+            });
+        }
+
+        setFilterSheetOpen(open);
+    }
+
+    function applyFilterSheet() {
+        setFilterSheetOpen(false);
+        reload(draft);
+    }
+
+    function resetFilterSheet() {
+        const empty = { ...EMPTY_SINGLE_DRAFT, category_id: [] as string[] };
+        setDraft(empty);
+        setFilterSheetOpen(false);
+        reload(empty);
     }
 
     function moveToTrash(expense: ExpenseRow) {
@@ -198,23 +240,48 @@ export default function ExpensesIndex({
         [],
     );
 
+    const activeSingleFilterKeys = (['property', 'period'] as const).filter(
+        (key) => filters[key] !== (key === 'period' ? 'all_time' : 'all'),
+    );
+
+    const filterOptionsByKey: Record<FilterKey, Option[]> = {
+        property: properties,
+        period: periods,
+    };
+
+    function singleFilterLabel(key: FilterKey): string {
+        return (
+            filterOptionsByKey[key].find((o) => o.value === filters[key])
+                ?.label ?? filters[key]
+        );
+    }
+
+    function removeSingleFilter(key: FilterKey) {
+        reload({
+            [key]: key === 'period' ? 'all_time' : 'all',
+        } as Partial<Filters>);
+    }
+
     const activeFilterChips = [
         ...filters.category_id.map((value) => ({
-            group: 'category_id' as const,
-            value,
+            key: `category-${value}`,
             label: categories.find((c) => c.value === value)?.label ?? value,
+            onRemove: () => toggleCategoryFilter(value, false),
         })),
-        ...filters.property_id.map((value) => ({
-            group: 'property' as const,
-            value,
-            label: properties.find((p) => p.value === value)?.label ?? value,
+        ...activeSingleFilterKeys.map((key) => ({
+            key,
+            label: singleFilterLabel(key),
+            onRemove: () => removeSingleFilter(key),
         })),
     ];
 
     const isFiltered =
         filters.search !== '' ||
         filters.category_id.length > 0 ||
-        filters.property_id.length > 0;
+        activeSingleFilterKeys.length > 0;
+
+    const activeFilterCount =
+        filters.category_id.length + activeSingleFilterKeys.length;
 
     const toolbar = (
         <>
@@ -229,53 +296,49 @@ export default function ExpensesIndex({
             </div>
 
             {filters.tab === 'active' && (
-                <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                        <Button variant="outline" size="sm">
-                            <Filter className="size-[15px]" />
-                            Filters
-                        </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="start" className="w-56">
-                        <DropdownMenuLabel>Category</DropdownMenuLabel>
-                        {categories.map((category) => (
-                            <DropdownMenuCheckboxItem
-                                key={category.value}
-                                checked={filters.category_id.includes(
-                                    category.value,
-                                )}
-                                onCheckedChange={(checked) =>
-                                    toggleCategoryFilter(
-                                        category.value,
-                                        checked === true,
-                                    )
-                                }
-                                onSelect={(e) => e.preventDefault()}
-                            >
-                                {category.label}
-                            </DropdownMenuCheckboxItem>
-                        ))}
-                        <DropdownMenuSeparator />
-                        <DropdownMenuLabel>Property</DropdownMenuLabel>
-                        {properties.map((property) => (
-                            <DropdownMenuCheckboxItem
-                                key={property.value}
-                                checked={filters.property_id.includes(
-                                    property.value,
-                                )}
-                                onCheckedChange={(checked) =>
-                                    togglePropertyFilter(
-                                        property.value,
-                                        checked === true,
-                                    )
-                                }
-                                onSelect={(e) => e.preventDefault()}
-                            >
-                                {property.label}
-                            </DropdownMenuCheckboxItem>
-                        ))}
-                    </DropdownMenuContent>
-                </DropdownMenu>
+                <FilterSheet
+                    title="Filter Expenses"
+                    open={filterSheetOpen}
+                    onOpenChange={openFilterSheet}
+                    activeCount={activeFilterCount}
+                    onReset={resetFilterSheet}
+                    onApply={applyFilterSheet}
+                >
+                    <FilterField label="Property">
+                        <SearchableSelect
+                            value={draft.property}
+                            onChange={(value) =>
+                                setDraft((d) => ({
+                                    ...d,
+                                    property: value ?? 'all',
+                                }))
+                            }
+                            options={[
+                                { value: 'all', label: 'All properties' },
+                                ...properties,
+                            ]}
+                            placeholder="All properties"
+                            searchPlaceholder="Search properties…"
+                        />
+                    </FilterField>
+                    <FilterMultiPillGroup
+                        label="Category"
+                        options={categories}
+                        value={draft.category_id}
+                        onChange={(value) =>
+                            setDraft((d) => ({ ...d, category_id: value }))
+                        }
+                    />
+                    <FilterPillGroup
+                        label="Period"
+                        options={periods}
+                        value={draft.period}
+                        onChange={(value) =>
+                            setDraft((d) => ({ ...d, period: value }))
+                        }
+                        includeAll={false}
+                    />
+                </FilterSheet>
             )}
 
             {canDelete && (
@@ -310,16 +373,26 @@ export default function ExpensesIndex({
                     category_id: filters.category_id.length
                         ? filters.category_id
                         : undefined,
-                    property_id: filters.property_id.length
-                        ? filters.property_id
-                        : undefined,
+                    property:
+                        filters.property !== 'all'
+                            ? filters.property
+                            : undefined,
+                    period:
+                        filters.period !== 'all_time'
+                            ? filters.period
+                            : undefined,
                     sort: filters.sort,
                     dir: filters.dir,
                     per_page: filters.per_page,
                     tab: filters.tab,
                     page,
                 },
-                { preserveState: true, preserveScroll: true, replace: true },
+                {
+                    preserveState: true,
+                    preserveScroll: true,
+                    replace: true,
+                    only: ['expenses', 'filters', 'counts'],
+                },
             ),
         onPerPageChange: (per_page: number) => reload({ per_page }),
         sort: { column: filters.sort, dir: filters.dir },
@@ -355,27 +428,17 @@ export default function ExpensesIndex({
                 )}
             </div>
 
-            {activeFilterChips.length > 0 && (
+            {filters.tab === 'active' && activeFilterChips.length > 0 && (
                 <div className="mb-3.5 flex flex-wrap items-center gap-2">
                     {activeFilterChips.map((chip) => (
                         <span
-                            key={`${chip.group}-${chip.value}`}
+                            key={chip.key}
                             className="inline-flex items-center gap-1.5 rounded-full bg-accent-soft py-1 pr-1.5 pl-2.5 text-xs font-semibold text-accent-strong"
                         >
                             {chip.label}
                             <button
                                 type="button"
-                                onClick={() =>
-                                    chip.group === 'category_id'
-                                        ? toggleCategoryFilter(
-                                              chip.value,
-                                              false,
-                                          )
-                                        : togglePropertyFilter(
-                                              chip.value,
-                                              false,
-                                          )
-                                }
+                                onClick={chip.onRemove}
                                 className="rounded-full p-0.5 hover:bg-black/10"
                             >
                                 <X className="size-2.5" />

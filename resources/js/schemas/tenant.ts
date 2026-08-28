@@ -6,6 +6,7 @@ import { phoneField } from '@/schemas/phone';
  */
 export const tenantSchema = z.object({
     name: z.string().trim().min(1, 'Name is required.').max(255),
+    type: z.enum(['individual', 'company']),
     email: z
         .string()
         .trim()
@@ -16,8 +17,28 @@ export const tenantSchema = z.object({
         .or(z.literal('')),
     phone: phoneField,
     id_number: z.string().max(255).optional().nullable(),
+    tin: z.string().max(255).optional().nullable(),
+    id_document_type: z
+        .enum([
+            'national_id',
+            'passport',
+            'company_registration_certificate',
+            'other',
+        ])
+        .optional()
+        .nullable(),
     address: z.string().max(255).optional().nullable(),
     notes: z.string().max(5000).optional().nullable(),
+    contact_person_name: z.string().max(255).optional().nullable(),
+    contact_person_phone: phoneField,
+    contact_person_email: z
+        .string()
+        .trim()
+        .email('Enter a valid email.')
+        .max(255)
+        .optional()
+        .nullable()
+        .or(z.literal('')),
     id_document: z.instanceof(File).optional().nullable(),
     id_document_remove: z.boolean().optional(),
     avatar: z.instanceof(File).optional().nullable(),

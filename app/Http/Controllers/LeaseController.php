@@ -6,21 +6,38 @@ use App\Enums\BillingPeriod;
 use App\Enums\LeaseStatus;
 use App\Enums\PaymentScheduleStatus;
 use App\Enums\PaymentStatus;
+use App\Http\Requests\Leases\SendLeaseSigningLinkRequest;
 use App\Http\Requests\Leases\StoreLeaseRequest;
+use App\Http\Requests\Leases\StoreLeaseSignatureRequest;
 use App\Http\Requests\Leases\UpdateLeaseRequest;
 use App\Models\Lease;
+use App\Models\LeaseSignature;
+use App\Models\LeaseSigningLink;
 use App\Models\Payment;
 use App\Models\PaymentSchedule;
 use App\Models\Tenant;
 use App\Models\Unit;
+use App\Notifications\LeaseSigningRequested;
+use App\Services\AfricasTalkingSmsService;
+use App\Services\CodeGenerator;
+use App\Settings\BrandingSettings;
+use App\Settings\NotificationSettings;
+use App\Settings\SmsSettings;
+use App\Support\Branding;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Notification;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\Response as HttpResponse;
 
 class LeaseController extends Controller
 {
+    public function __construct(private readonly CodeGenerator $codes) {}
+
     public function index(Request $request): Response
     {
         $filters = $this->parseFilters($request);
@@ -129,6 +146,8 @@ class LeaseController extends Controller
             'notes' => $request->validated('notes'),
         ]);
 
+        $lease->forceFill(['lease_number' => $this->codes->generate('lease', $lease)])->save();
+
         $lease->tenants()->sync($request->validated('tenant_ids'));
         $this->syncDocument($request, $lease);
 
@@ -180,9 +199,10 @@ class LeaseController extends Controller
     public function show(Request $request, Lease $lease): Response
     {
         $lease->load([
-            'unit.property',
+            'unit.property.landlord',
             'tenants',
             'media',
+            'signatures',
             'payments' => fn ($query) => $query->orderByDesc('payment_date'),
         ]);
 
@@ -213,6 +233,121 @@ class LeaseController extends Controller
                 ? Inertia::defer($fetchScheduleTable)
                 : Inertia::optional($fetchScheduleTable),
         ]);
+    }
+
+    /**
+     * Streams the lease agreement PDF, generated fresh from the lease's
+     * current data and signature state on every request — never a cached
+     * file, so an edit to the lease or a new signature is always reflected
+     * immediately. The separately-uploaded `document` media collection
+     * remains available as a manual override (e.g. a paper-signed
+     * amendment scanned in) — this route is additive, not a replacement for it.
+     */
+    public function agreement(Lease $lease): HttpResponse
+    {
+        $lease->load([
+            'unit.property.landlord.landlordDetail',
+            'tenants',
+            'signatures' => fn ($query) => $query->orderBy('signed_at'),
+        ]);
+
+        $branding = app(BrandingSettings::class);
+
+        $pdf = Pdf::loadView('leases.agreement', [
+            'lease' => $lease,
+            'landlord' => $lease->unit?->property?->landlord,
+            'accentColor' => $branding->accent_color,
+            'logoDataUri' => Branding::logoDataUri(),
+            'headerText' => $branding->pdf_header_text,
+        ]);
+
+        $filename = ($lease->lease_number ?? "lease-{$lease->id}").'.pdf';
+
+        return $pdf->stream($filename);
+    }
+
+    /**
+     * Records one signature captured in person — either the landlord's own,
+     * or a tenant physically present with staff — via an authenticated
+     * session driving the signature pad. The remote counterpart is
+     * SigningController::store, for a tenant signing unaccompanied.
+     */
+    public function storeSignature(StoreLeaseSignatureRequest $request, Lease $lease): RedirectResponse
+    {
+        $tenantId = $request->validated('tenant_id');
+
+        if ($tenantId !== null && ! $lease->tenants()->where('tenants.id', $tenantId)->exists()) {
+            throw ValidationException::withMessages([
+                'tenant_id' => 'That tenant is not on this lease.',
+            ]);
+        }
+
+        $lease->signatures()->create([
+            'signer_role' => $request->validated('signer_role'),
+            'tenant_id' => $tenantId,
+            'signer_name' => $request->validated('signer_name'),
+            'signature_image' => $request->validated('signature_image'),
+            'signed_at' => now(),
+            'ip_address' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+        ]);
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => 'Signature recorded.']);
+
+        return back();
+    }
+
+    /**
+     * Sends a tenant a single-use remote signing link over whichever
+     * channels are enabled (mail/SMS) and the tenant has contact details
+     * for — staff can still relay the link manually since it's returned in
+     * the flash message either way.
+     */
+    public function sendSigningLink(
+        SendLeaseSigningLinkRequest $request,
+        Lease $lease,
+        NotificationSettings $notifications,
+        SmsSettings $sms,
+        AfricasTalkingSmsService $smsService,
+    ): RedirectResponse {
+        $tenantId = $request->validated('tenant_id');
+        $tenant = $lease->tenants()->where('tenants.id', $tenantId)->first();
+
+        if ($tenant === null) {
+            throw ValidationException::withMessages([
+                'tenant_id' => 'That tenant is not on this lease.',
+            ]);
+        }
+
+        $link = LeaseSigningLink::create([
+            'lease_id' => $lease->id,
+            'tenant_id' => $tenant->id,
+            'token' => LeaseSigningLink::generateToken(),
+            'expires_at' => now()->addDays(7),
+        ]);
+        $link->setRelation('lease', $lease);
+        $link->setRelation('tenant', $tenant);
+
+        $notification = new LeaseSigningRequested($link);
+        $sentVia = [];
+
+        if ($notifications->email_enabled && $tenant->email) {
+            Notification::route('mail', $tenant->email)->notify($notification);
+            $sentVia[] = 'email';
+        }
+
+        if ($notifications->sms_enabled && $sms->enabled && $tenant->phone) {
+            $smsService->send($tenant->phone, $notification->smsBody());
+            $sentVia[] = 'SMS';
+        }
+
+        $message = $sentVia !== []
+            ? 'Signing link sent to '.$tenant->name.' via '.implode(' and ', $sentVia).'.'
+            : "No email or SMS channel is available for {$tenant->name} — share this link directly: {$notification->signingUrl()}";
+
+        Inertia::flash('toast', ['type' => $sentVia !== [] ? 'success' : 'info', 'message' => $message]);
+
+        return back();
     }
 
     public function destroy(Request $request, Lease $lease): RedirectResponse
@@ -316,16 +451,28 @@ class LeaseController extends Controller
 
         return [
             'id' => $lease->id,
+            'lease_number' => $lease->lease_number,
             'unit' => $lease->unit !== null ? [
                 'id' => $lease->unit->id,
                 'name' => $lease->unit->name,
                 'property_name' => $lease->unit->property?->name,
+            ] : null,
+            'landlord' => $lease->unit?->property?->landlord !== null ? [
+                'id' => $lease->unit->property->landlord->id,
+                'name' => $lease->unit->property->landlord->name,
             ] : null,
             'tenants' => $lease->tenants->map(fn (Tenant $tenant) => [
                 'id' => $tenant->id,
                 'name' => $tenant->name,
                 'email' => $tenant->email,
                 'phone' => $tenant->phone,
+            ])->all(),
+            'signatures' => $lease->signatures->map(fn (LeaseSignature $signature) => [
+                'id' => $signature->id,
+                'signer_role' => $signature->signer_role->value,
+                'tenant_id' => $signature->tenant_id,
+                'signer_name' => $signature->signer_name,
+                'signed_at' => $signature->signed_at->toIso8601String(),
             ])->all(),
             'start_date' => $lease->start_date->toDateString(),
             'end_date' => $lease->end_date->toDateString(),

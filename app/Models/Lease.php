@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\BillingPeriod;
 use App\Enums\LeaseStatus;
+use App\Enums\SignerRole;
 use App\Observers\LeaseObserver;
 use Database\Factories\LeaseFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -27,6 +28,7 @@ use Spatie\MediaLibrary\InteractsWithMedia;
  * unit means ending this lease and creating a new one there.
  *
  * @property int $id
+ * @property string|null $lease_number
  * @property int $unit_id
  * @property Carbon $start_date
  * @property Carbon $end_date
@@ -144,5 +146,32 @@ class Lease extends Model implements HasMedia
     public function documents(): MorphMany
     {
         return $this->morphMany(Document::class, 'documentable');
+    }
+
+    /**
+     * @return HasMany<LeaseSignature, $this>
+     */
+    public function signatures(): HasMany
+    {
+        return $this->hasMany(LeaseSignature::class);
+    }
+
+    /**
+     * True once the landlord and every attached tenant has signed —
+     * computed on read rather than a stored/synced flag, so it can never
+     * drift out of sync with the actual signature rows.
+     */
+    public function isFullySigned(): bool
+    {
+        $signedRoles = $this->signatures->pluck('signer_role');
+        $landlordSigned = $signedRoles->contains(SignerRole::Landlord);
+
+        $signedTenantIds = $this->signatures
+            ->where('signer_role', SignerRole::Tenant)
+            ->pluck('tenant_id');
+        $allTenantsSigned = $this->tenants->isNotEmpty()
+            && $this->tenants->pluck('id')->diff($signedTenantIds)->isEmpty();
+
+        return $landlordSigned && $allTenantsSigned;
     }
 }

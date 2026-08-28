@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\PartyType;
 use App\Enums\UserStatus;
 use App\Exports\UsersExport;
 use App\Http\Requests\Users\InviteUserRequest;
@@ -11,6 +12,7 @@ use App\Models\Role;
 use App\Models\User;
 use App\Notifications\UserInvited;
 use App\Settings\BrandingSettings;
+use App\Settings\ComplianceSettings;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -149,7 +151,7 @@ class UserController extends Controller
         return $query;
     }
 
-    public function create(Request $request): Response
+    public function create(Request $request, ComplianceSettings $compliance): Response
     {
         $roles = $this->roleOptions();
         $requestedRole = $request->string('role')->value();
@@ -160,6 +162,7 @@ class UserController extends Controller
             'statuses' => $this->statusOptions(),
             'defaultRole' => $defaultRole,
             'passwordRules' => PasswordRule::defaults()->toPasswordRulesString(),
+            'compliance_enabled' => $compliance->enabled,
         ]);
     }
 
@@ -190,7 +193,7 @@ class UserController extends Controller
         return to_route('users.index');
     }
 
-    public function edit(User $user): Response
+    public function edit(User $user, ComplianceSettings $compliance): Response
     {
         $user->load(['roles', 'landlordDetail.media', 'media']);
 
@@ -199,6 +202,7 @@ class UserController extends Controller
             'roles' => $this->roleOptions(),
             'statuses' => $this->statusOptions(),
             'passwordRules' => PasswordRule::defaults()->toPasswordRulesString(),
+            'compliance_enabled' => $compliance->enabled,
         ]);
     }
 
@@ -303,7 +307,10 @@ class UserController extends Controller
             'role' => $role?->name,
             'status' => $user->status->value,
             'avatar' => $avatar ? ['name' => $avatar->file_name, 'url' => $avatar->getUrl()] : null,
+            'landlord_type' => $detail?->type->value,
             'landlord_id_number' => $detail?->id_number,
+            'landlord_tin' => $detail?->tin,
+            'landlord_id_document_type' => $detail?->id_document_type?->value,
             'landlord_address' => $detail?->address,
             'landlord_phone' => $detail?->phone,
             'landlord_notes' => $detail?->notes,
@@ -335,7 +342,11 @@ class UserController extends Controller
             'last_active_at' => $user->last_active_at?->toIso8601String(),
             'created_at' => $user->created_at?->toIso8601String(),
             'landlord' => $detail !== null ? [
+                'type' => $detail->type->value,
+                'type_label' => $detail->type->label(),
                 'id_number' => $detail->id_number,
+                'tin' => $detail->tin,
+                'id_document_type_label' => $detail->id_document_type?->label(),
                 'address' => $detail->address,
                 'phone' => $detail->phone,
                 'notes' => $detail->notes,
@@ -350,12 +361,18 @@ class UserController extends Controller
     private function syncLandlordDetail(Request $request, User $user): void
     {
         $fields = [
+            'type' => $request->input('landlord_type', PartyType::Individual->value),
             'id_number' => $request->input('landlord_id_number'),
+            'tin' => $request->input('landlord_tin'),
+            'id_document_type' => $request->input('landlord_id_document_type'),
             'address' => $request->input('landlord_address'),
             'phone' => $request->input('landlord_phone'),
             'notes' => $request->input('landlord_notes'),
         ];
-        $hasFields = collect($fields)->filter(fn (?string $value) => filled($value))->isNotEmpty();
+        $hasFields = collect($fields)
+            ->except('type')
+            ->filter(fn (?string $value) => filled($value))
+            ->isNotEmpty();
         $hasFile = $request->hasFile('landlord_id_document');
         $shouldRemove = $request->boolean('landlord_id_document_remove');
 

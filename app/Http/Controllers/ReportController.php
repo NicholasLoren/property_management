@@ -332,7 +332,7 @@ class ReportController extends Controller
     {
         return match ($type) {
             'income' => $this->incomeReport($from, $to, $propertyId, $unitId, $table),
-            'expense' => $this->expenseReport($from, $to, $propertyId, $table),
+            'expense' => $this->expenseReport($from, $to, $propertyId, $unitId, $table),
             'profit-loss' => $this->profitLossReport($from, $to, $propertyId, $unitId, $table),
             'rent-collection' => $this->rentCollectionReport($from, $to, $propertyId, $unitId, $table),
             'rent-arrears' => $this->rentArrearsReport($propertyId, $unitId, $table),
@@ -424,7 +424,7 @@ class ReportController extends Controller
     /**
      * @return array{columns: array<int, array{key: string, label: string, type: string, sortable: bool}>, rows: array<int, array<string, string>>, summary: array<int, array{label: string, value: string, type: string}>|null, pagination: array<string, mixed>|null, sort: string, dir: string}
      */
-    private function expenseReport(Carbon $from, Carbon $to, ?int $propertyId, ReportTableParams $table): array
+    private function expenseReport(Carbon $from, Carbon $to, ?int $propertyId, ?int $unitId, ReportTableParams $table): array
     {
         $sortColumns = [
             'date' => 'transactions.transaction_date',
@@ -436,10 +436,15 @@ class ReportController extends Controller
         $sort = array_key_exists($table->sort, $sortColumns) ? $table->sort : 'date';
         $dir = $table->sort === '' ? 'desc' : $table->dir;
 
+        // Expenses are recorded at the property level, not the unit level —
+        // scoping to a single unit has no rows it can honestly show (see
+        // incomeReport()'s identical constraint), so it matches nothing
+        // rather than silently falling back to the whole property's expenses.
         $base = Transaction::query()
             ->where('transactions.type', TransactionType::Expense->value)
             ->whereBetween('transactions.transaction_date', [$from->toDateString(), $to->toDateString()])
-            ->when($propertyId !== null, fn (Builder $q) => $q->where('transactions.property_id', $propertyId));
+            ->when($unitId !== null, fn (Builder $q) => $q->whereKey([]))
+            ->when($unitId === null && $propertyId !== null, fn (Builder $q) => $q->where('transactions.property_id', $propertyId));
 
         $summary = (clone $base)->sum('amount');
 

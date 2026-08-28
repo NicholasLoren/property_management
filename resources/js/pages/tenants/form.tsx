@@ -8,6 +8,13 @@ import { FileDropzone } from '@/components/ui/file-dropzone';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RequiredAsterisk } from '@/components/ui/required-asterisk';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
 import { Spinner } from '@/components/ui/spinner';
 import { Telephone } from '@/components/ui/telephone';
 import { Textarea } from '@/components/ui/textarea';
@@ -19,20 +26,45 @@ import type { TenantDocument } from '@/types/tenants';
 type TenantFormRow = {
     id: number;
     name: string;
+    type: 'individual' | 'company';
     email: string | null;
     phone: string | null;
     id_number: string | null;
+    tin: string | null;
+    id_document_type:
+        | 'national_id'
+        | 'passport'
+        | 'company_registration_certificate'
+        | 'other'
+        | null;
     address: string | null;
     notes: string | null;
+    contact_person_name: string | null;
+    contact_person_phone: string | null;
+    contact_person_email: string | null;
     id_document: TenantDocument | null;
     avatar: TenantDocument | null;
 };
 
 type PageProps = {
     tenant?: TenantFormRow;
+    compliance_enabled: boolean;
 };
 
-export default function TenantForm({ tenant }: PageProps) {
+const ID_DOCUMENT_TYPES = [
+    { value: 'national_id', label: 'National ID' },
+    { value: 'passport', label: 'Passport' },
+    {
+        value: 'company_registration_certificate',
+        label: 'Company registration certificate',
+    },
+    { value: 'other', label: 'Other' },
+] as const;
+
+export default function TenantForm({
+    tenant,
+    compliance_enabled: complianceEnabled,
+}: PageProps) {
     const isEdit = Boolean(tenant);
     const [existingAvatarRemoved, setExistingAvatarRemoved] = useState(false);
 
@@ -40,17 +72,25 @@ export default function TenantForm({ tenant }: PageProps) {
         tenantSchema,
         {
             name: tenant?.name ?? '',
+            type: tenant?.type ?? 'individual',
             email: tenant?.email ?? '',
             phone: tenant?.phone ?? '',
             id_number: tenant?.id_number ?? '',
+            tin: tenant?.tin ?? '',
+            id_document_type: tenant?.id_document_type ?? null,
             address: tenant?.address ?? '',
             notes: tenant?.notes ?? '',
+            contact_person_name: tenant?.contact_person_name ?? '',
+            contact_person_phone: tenant?.contact_person_phone ?? '',
+            contact_person_email: tenant?.contact_person_email ?? '',
             id_document: null,
             id_document_remove: false,
             avatar: null,
             avatar_remove: false,
         },
     );
+
+    const isCompany = data.type === 'company';
 
     const existingAvatar =
         !existingAvatarRemoved && tenant ? tenant.avatar : null;
@@ -119,10 +159,31 @@ export default function TenantForm({ tenant }: PageProps) {
                     />
                 </div>
 
+                <div className="mb-4 grid gap-1.5">
+                    <Label>Tenant type</Label>
+                    <div className="inline-flex w-fit gap-0.5 rounded-full border border-border-soft bg-secondary p-[3px]">
+                        {(['individual', 'company'] as const).map((type) => (
+                            <button
+                                key={type}
+                                type="button"
+                                onClick={() => setField('type', type)}
+                                className={
+                                    'rounded-full px-3.5 py-1.5 text-[12.5px] font-semibold capitalize ' +
+                                    (data.type === type
+                                        ? 'bg-card text-foreground shadow-sm'
+                                        : 'text-text-secondary')
+                                }
+                            >
+                                {type}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+
                 <div className="grid gap-4 sm:grid-cols-2">
                     <div className="grid gap-1.5">
                         <Label htmlFor="name">
-                            Name
+                            {isCompany ? 'Company name' : 'Name'}
                             <RequiredAsterisk />
                         </Label>
                         <Input
@@ -130,7 +191,11 @@ export default function TenantForm({ tenant }: PageProps) {
                             autoFocus
                             value={data.name}
                             onChange={(e) => setField('name', e.target.value)}
-                            placeholder="e.g. Jonah Kessler"
+                            placeholder={
+                                isCompany
+                                    ? 'e.g. Kessler Holdings Ltd'
+                                    : 'e.g. Jonah Kessler'
+                            }
                         />
                         <InputError message={errors.name} />
                     </div>
@@ -158,18 +223,135 @@ export default function TenantForm({ tenant }: PageProps) {
                     </div>
 
                     <div className="grid gap-1.5">
-                        <Label htmlFor="id_number">ID number</Label>
+                        <Label htmlFor="id_number">
+                            {isCompany ? 'Registration number' : 'ID number'}
+                        </Label>
                         <Input
                             id="id_number"
                             value={data.id_number ?? ''}
                             onChange={(e) =>
                                 setField('id_number', e.target.value)
                             }
-                            placeholder="National ID or passport no."
+                            placeholder={
+                                isCompany
+                                    ? 'URSB registration no.'
+                                    : 'National ID or passport no.'
+                            }
                         />
                         <InputError message={errors.id_number} />
                     </div>
                 </div>
+
+                {complianceEnabled && (
+                    <div className="mt-5 border-t border-border-soft pt-4">
+                        <Label className="mb-3">Compliance details</Label>
+                        <div className="grid gap-4 sm:grid-cols-2">
+                            <div className="grid gap-1.5">
+                                <Label htmlFor="tin">TIN</Label>
+                                <Input
+                                    id="tin"
+                                    value={data.tin ?? ''}
+                                    onChange={(e) =>
+                                        setField('tin', e.target.value)
+                                    }
+                                    placeholder="Tax Identification Number"
+                                />
+                                <InputError message={errors.tin} />
+                            </div>
+                            <div className="grid gap-1.5">
+                                <Label htmlFor="id_document_type">
+                                    ID document type
+                                </Label>
+                                <Select
+                                    value={data.id_document_type ?? ''}
+                                    onValueChange={(value) =>
+                                        setField(
+                                            'id_document_type',
+                                            value as typeof data.id_document_type,
+                                        )
+                                    }
+                                >
+                                    <SelectTrigger id="id_document_type">
+                                        <SelectValue placeholder="Select a type…" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {ID_DOCUMENT_TYPES.map((option) => (
+                                            <SelectItem
+                                                key={option.value}
+                                                value={option.value}
+                                            >
+                                                {option.label}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                <InputError message={errors.id_document_type} />
+                            </div>
+                        </div>
+
+                        {isCompany && (
+                            <div className="mt-4 grid gap-4 border-t border-border-soft pt-4 sm:grid-cols-3">
+                                <div className="grid gap-1.5">
+                                    <Label htmlFor="contact_person_name">
+                                        Contact person
+                                    </Label>
+                                    <Input
+                                        id="contact_person_name"
+                                        value={data.contact_person_name ?? ''}
+                                        onChange={(e) =>
+                                            setField(
+                                                'contact_person_name',
+                                                e.target.value,
+                                            )
+                                        }
+                                        placeholder="Name of the person to reach"
+                                    />
+                                    <InputError
+                                        message={errors.contact_person_name}
+                                    />
+                                </div>
+                                <div className="grid gap-1.5">
+                                    <Label htmlFor="contact_person_phone">
+                                        Contact phone
+                                    </Label>
+                                    <Telephone
+                                        id="contact_person_phone"
+                                        value={data.contact_person_phone}
+                                        onChange={(value) =>
+                                            setField(
+                                                'contact_person_phone',
+                                                value,
+                                            )
+                                        }
+                                    />
+                                    <InputError
+                                        message={errors.contact_person_phone}
+                                    />
+                                </div>
+                                <div className="grid gap-1.5">
+                                    <Label htmlFor="contact_person_email">
+                                        Contact email
+                                    </Label>
+                                    <Input
+                                        id="contact_person_email"
+                                        type="email"
+                                        value={data.contact_person_email ?? ''}
+                                        onChange={(e) =>
+                                            setField(
+                                                'contact_person_email',
+                                                e.target.value,
+                                            )
+                                        }
+                                        placeholder="contact@company.com"
+                                    />
+                                    <InputError
+                                        message={errors.contact_person_email}
+                                    />
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
 
                 <div className="mt-5 border-t border-border-soft pt-4">
                     <Label htmlFor="address" className="mb-2">

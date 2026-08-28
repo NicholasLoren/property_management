@@ -2,6 +2,8 @@
 
 namespace App\Http\Requests\Users;
 
+use App\Enums\IdentityDocumentType;
+use App\Enums\PartyType;
 use App\Enums\UserStatus;
 use App\Rules\Phone;
 use App\Support\UploadLimits;
@@ -31,7 +33,10 @@ class UpdateUserRequest extends FormRequest
             'status' => ['required', Rule::enum(UserStatus::class)],
             // Left blank, the user's password is unchanged.
             'password' => ['nullable', 'string', Password::default(), 'confirmed'],
+            'landlord_type' => ['nullable', Rule::enum(PartyType::class)],
             'landlord_id_number' => ['nullable', 'string', 'max:255'],
+            'landlord_tin' => ['nullable', 'string', 'max:255'],
+            'landlord_id_document_type' => ['nullable', Rule::enum(IdentityDocumentType::class)],
             'landlord_address' => ['nullable', 'string', 'max:255'],
             'landlord_phone' => ['nullable', 'string', 'max:32', new Phone],
             'landlord_notes' => ['nullable', 'string', 'max:2000'],

@@ -304,6 +304,33 @@ class UserManagementTest extends TestCase
         $this->assertNotNull($user->landlordDetail->getFirstMedia('id_document'));
     }
 
+    public function test_admin_can_invite_a_company_landlord_with_tin_and_document_type(): void
+    {
+        $admin = $this->superAdmin();
+
+        $this->actingAs($admin)
+            ->post(route('users.store'), [
+                'name' => 'Riverside Properties Ltd',
+                'email' => 'ops@riverside-props.com',
+                'role' => 'Landlord',
+                'landlord_type' => 'company',
+                'landlord_id_number' => 'URSB-445566',
+                'landlord_tin' => '1009008007',
+                'landlord_id_document_type' => 'company_registration_certificate',
+            ])
+            ->assertRedirect();
+
+        $user = User::whereEmail('ops@riverside-props.com')->firstOrFail();
+
+        $this->assertDatabaseHas('landlord_details', [
+            'user_id' => $user->id,
+            'type' => 'company',
+            'id_number' => 'URSB-445566',
+            'tin' => '1009008007',
+            'id_document_type' => 'company_registration_certificate',
+        ]);
+    }
+
     public function test_landlord_details_are_optional_for_a_non_landlord_role(): void
     {
         $admin = $this->superAdmin();

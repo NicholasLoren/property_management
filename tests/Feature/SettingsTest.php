@@ -6,6 +6,7 @@ use App\Models\CompanyProfile;
 use App\Models\User;
 use App\Settings\BillingSettings;
 use App\Settings\BrandingSettings;
+use App\Settings\ComplianceSettings;
 use App\Settings\GeneralSettings;
 use App\Settings\NotificationSettings;
 use App\Settings\SmsSettings;
@@ -357,6 +358,29 @@ class SettingsTest extends TestCase
                 'rent_overdue_reminder_repeat_days' => 7,
             ])
             ->assertSessionHasErrors('days_in_month');
+    }
+
+    public function test_admin_can_toggle_compliance_settings(): void
+    {
+        $admin = $this->superAdmin();
+
+        $this->assertFalse(app(ComplianceSettings::class)->enabled);
+
+        $this->actingAs($admin)
+            ->patch(route('company-settings.update-compliance'), [
+                'enabled' => true,
+            ])
+            ->assertRedirect();
+
+        $this->assertTrue(app(ComplianceSettings::class)->enabled);
+
+        $this->actingAs($admin)
+            ->patch(route('company-settings.update-compliance'), [
+                'enabled' => false,
+            ])
+            ->assertRedirect();
+
+        $this->assertFalse(app(ComplianceSettings::class)->enabled);
     }
 
     public function test_admin_can_send_a_test_sms(): void

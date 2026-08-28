@@ -78,6 +78,12 @@
     --color-chart-4: var(--chart-4);
     --color-chart-5: var(--chart-5);
 
+    --color-series-1: var(--series-1);
+    --color-series-2: var(--series-2);
+    --color-series-3: var(--series-3);
+    --color-series-4: var(--series-4);
+    --color-series-5: var(--series-5);
+
     --color-tone-1: var(--tone-1);
     --color-tone-2: var(--tone-2);
     --color-tone-3: var(--tone-3);
@@ -165,6 +171,15 @@
     --chart-4: #8a6ba6;
     --chart-5: #6b8f71;
 
+    /* Validated categorical series for identity-encoded charts (e.g. a
+       category pie) — distinct from --chart-1..5 above, whose adjacent
+       pairs fail the colorblind/normal-vision distinguishability floor. */
+    --series-1: #2a78d6;
+    --series-2: #eb6834;
+    --series-3: #1baf7a;
+    --series-4: #eda100;
+    --series-5: #e87ba4;
+
     --radius: 14px;
 
     --sidebar: #ffffff;
@@ -250,6 +265,12 @@
     --chart-3: #d9a441;
     --chart-4: #a68ad0;
     --chart-5: #7fae86;
+
+    --series-1: #3987e5;
+    --series-2: #d95926;
+    --series-3: #199e70;
+    --series-4: #c98500;
+    --series-5: #d55181;
 
     --sidebar: #1a211c;
     --sidebar-foreground: #eef2ed;

@@ -172,6 +172,116 @@ class PaymentManagementTest extends TestCase
         $this->assertCount(1, $paymentB->getMedia('receipt'));
     }
 
+    public function test_a_payment_without_an_uploaded_receipt_gets_a_system_generated_pdf(): void
+    {
+        $admin = $this->admin();
+        $lease = Lease::factory()->create();
+        $schedule = PaymentSchedule::factory()->create(['lease_id' => $lease->id, 'amount_expected' => 450000]);
+
+        $this->actingAs($admin)
+            ->post(route('payments.store'), [
+                'lease_id' => (string) $lease->id,
+                'payment_schedule_ids' => [(string) $schedule->id],
+                'amount' => 450000,
+                'payment_date' => now()->toDateString(),
+                'method' => 'cash',
+                'status' => 'completed',
+            ])
+            ->assertRedirect(route('payments.index'));
+
+        $payment = Payment::query()->where('lease_id', $lease->id)->firstOrFail();
+
+        $this->assertNotNull($payment->receipt_number);
+        $this->assertStringStartsWith('RCT-', $payment->receipt_number);
+        $this->assertCount(1, $payment->getMedia('receipt'));
+        $this->assertSame('application/pdf', $payment->getFirstMedia('receipt')->mime_type);
+    }
+
+    public function test_a_payment_with_an_uploaded_receipt_keeps_the_upload_instead_of_generating_one(): void
+    {
+        Storage::fake('public');
+
+        $admin = $this->admin();
+        $lease = Lease::factory()->create();
+        $schedule = PaymentSchedule::factory()->create(['lease_id' => $lease->id, 'amount_expected' => 450000]);
+
+        $this->actingAs($admin)
+            ->post(route('payments.store'), [
+                'lease_id' => (string) $lease->id,
+                'payment_schedule_ids' => [(string) $schedule->id],
+                'amount' => 450000,
+                'payment_date' => now()->toDateString(),
+                'method' => 'cash',
+                'status' => 'completed',
+                'receipt' => UploadedFile::fake()->image('receipt.jpg'),
+            ])
+            ->assertRedirect(route('payments.index'));
+
+        $payment = Payment::query()->where('lease_id', $lease->id)->firstOrFail();
+
+        $this->assertNotNull($payment->receipt_number);
+        $this->assertCount(1, $payment->getMedia('receipt'));
+        $this->assertSame('image/jpeg', $payment->getFirstMedia('receipt')->mime_type);
+    }
+
+    public function test_multi_period_payment_without_upload_generates_a_distinct_receipt_per_payment(): void
+    {
+        $admin = $this->admin();
+        $lease = Lease::factory()->create();
+        $scheduleA = PaymentSchedule::factory()->create(['lease_id' => $lease->id, 'amount_expected' => 500000]);
+        $scheduleB = PaymentSchedule::factory()->create(['lease_id' => $lease->id, 'amount_expected' => 300000]);
+
+        $this->actingAs($admin)
+            ->post(route('payments.store'), [
+                'lease_id' => (string) $lease->id,
+                'payment_schedule_ids' => [(string) $scheduleA->id, (string) $scheduleB->id],
+                'amount' => 800000,
+                'payment_date' => now()->toDateString(),
+                'method' => 'cash',
+                'status' => 'completed',
+            ])
+            ->assertRedirect(route('payments.index'));
+
+        $paymentA = Payment::query()->where('payment_schedule_id', $scheduleA->id)->firstOrFail();
+        $paymentB = Payment::query()->where('payment_schedule_id', $scheduleB->id)->firstOrFail();
+
+        $this->assertNotSame($paymentA->receipt_number, $paymentB->receipt_number);
+        $this->assertCount(1, $paymentA->getMedia('receipt'));
+        $this->assertCount(1, $paymentB->getMedia('receipt'));
+        $this->assertNotSame(
+            $paymentA->getFirstMedia('receipt')->id,
+            $paymentB->getFirstMedia('receipt')->id,
+        );
+    }
+
+    public function test_removing_an_uploaded_receipt_on_update_falls_back_to_a_generated_one(): void
+    {
+        Storage::fake('public');
+
+        $admin = $this->admin();
+        $lease = Lease::factory()->create();
+        $schedule = PaymentSchedule::factory()->create(['lease_id' => $lease->id]);
+        $payment = Payment::factory()->create(['lease_id' => $lease->id, 'payment_schedule_id' => $schedule->id]);
+        $payment->addMedia(UploadedFile::fake()->image('receipt.jpg'))->toMediaCollection('receipt');
+
+        $this->actingAs($admin)
+            ->put(route('payments.update', $payment), [
+                'lease_id' => (string) $lease->id,
+                'payment_schedule_id' => (string) $schedule->id,
+                'amount' => $payment->amount,
+                'payment_date' => $payment->payment_date->toDateString(),
+                'method' => $payment->method->value,
+                'status' => $payment->status->value,
+                'receipt_remove' => '1',
+            ])
+            ->assertRedirect(route('payments.index'));
+
+        $payment->refresh();
+        $this->assertCount(1, $payment->getMedia('receipt'));
+        $this->assertSame('application/pdf', $payment->getFirstMedia('receipt')->mime_type);
+        $this->assertNotNull($payment->receipt_number);
+    }
+
     public function test_payment_rejects_a_tenant_not_on_the_lease(): void
     {
         $admin = $this->admin();

@@ -2,6 +2,8 @@
 
 namespace App\Http\Requests\Users;
 
+use App\Enums\IdentityDocumentType;
+use App\Enums\PartyType;
 use App\Rules\Phone;
 use App\Support\UploadLimits;
 use Illuminate\Foundation\Http\FormRequest;
@@ -28,7 +30,10 @@ class InviteUserRequest extends FormRequest
             // password (see UserController::store); set here, they're
             // told directly and no email goes out.
             'password' => ['nullable', 'string', Password::default(), 'confirmed'],
+            'landlord_type' => ['nullable', Rule::enum(PartyType::class)],
             'landlord_id_number' => ['nullable', 'string', 'max:255'],
+            'landlord_tin' => ['nullable', 'string', 'max:255'],
+            'landlord_id_document_type' => ['nullable', Rule::enum(IdentityDocumentType::class)],
             'landlord_address' => ['nullable', 'string', 'max:255'],
             'landlord_phone' => ['nullable', 'string', 'max:32', new Phone],
             'landlord_notes' => ['nullable', 'string', 'max:2000'],

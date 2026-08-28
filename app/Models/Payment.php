@@ -24,6 +24,7 @@ use Spatie\MediaLibrary\InteractsWithMedia;
  * Income). Feeds the dashboard's rent-collection and past-due signals.
  *
  * @property int $id
+ * @property string|null $receipt_number
  * @property int $lease_id
  * @property int|null $payment_schedule_id
  * @property int|null $tenant_id

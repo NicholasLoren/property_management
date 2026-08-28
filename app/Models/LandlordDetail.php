@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Enums\IdentityDocumentType;
+use App\Enums\PartyType;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -16,17 +18,31 @@ use Spatie\MediaLibrary\InteractsWithMedia;
  *
  * @property int $id
  * @property int $user_id
+ * @property PartyType $type
  * @property string|null $id_number
+ * @property string|null $tin
+ * @property IdentityDocumentType|null $id_document_type
  * @property string|null $address
  * @property string|null $phone
  * @property string|null $notes
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['id_number', 'address', 'phone', 'notes'])]
+#[Fillable(['type', 'id_number', 'tin', 'id_document_type', 'address', 'phone', 'notes'])]
 class LandlordDetail extends Model implements HasMedia
 {
     use InteractsWithMedia;
+
+    /**
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'type' => PartyType::class,
+            'id_document_type' => IdentityDocumentType::class,
+        ];
+    }
 
     /**
      * @return BelongsTo<User, $this>

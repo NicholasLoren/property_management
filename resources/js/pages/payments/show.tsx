@@ -20,6 +20,7 @@ import units from '@/routes/units';
 
 type PaymentShowRow = {
     id: number;
+    receipt_number: string | null;
     reference: string | null;
     amount: string;
     payment_date: string;
@@ -191,6 +192,12 @@ export default function PaymentShow({ payment }: PageProps) {
                         Summary
                     </h2>
                     <dl className="grid gap-2.5 text-sm">
+                        <div className="flex justify-between gap-3">
+                            <dt className="text-text-tertiary">Receipt no.</dt>
+                            <dd className="text-right font-medium">
+                                {payment.receipt_number ?? '–'}
+                            </dd>
+                        </div>
                         <div className="flex justify-between gap-3">
                             <dt className="text-text-tertiary">Reference</dt>
                             <dd className="text-right font-medium">

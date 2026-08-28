@@ -39,3 +39,9 @@ export type LeaseStatusRow = {
     status_label: string;
     count: number;
 };
+
+export type CollectionRateTrendPoint = {
+    month: string;
+    full_month: string;
+    rate: number;
+};

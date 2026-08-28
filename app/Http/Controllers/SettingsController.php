@@ -6,6 +6,7 @@ use App\Http\Requests\Settings\TestSmsRequest;
 use App\Http\Requests\Settings\UpdateBillingSettingsRequest;
 use App\Http\Requests\Settings\UpdateBrandingSettingsRequest;
 use App\Http\Requests\Settings\UpdateCodesSettingsRequest;
+use App\Http\Requests\Settings\UpdateComplianceSettingsRequest;
 use App\Http\Requests\Settings\UpdateGeneralSettingsRequest;
 use App\Http\Requests\Settings\UpdateNotificationSettingsRequest;
 use App\Http\Requests\Settings\UpdateSmsSettingsRequest;
@@ -14,6 +15,7 @@ use App\Services\AfricasTalkingSmsService;
 use App\Settings\BillingSettings;
 use App\Settings\BrandingSettings;
 use App\Settings\CodesSettings;
+use App\Settings\ComplianceSettings;
 use App\Settings\GeneralSettings;
 use App\Settings\NotificationSettings;
 use App\Settings\SmsSettings;
@@ -33,6 +35,7 @@ class SettingsController extends Controller
         NotificationSettings $notifications,
         CodesSettings $codes,
         BillingSettings $billing,
+        ComplianceSettings $compliance,
     ): Response {
         $profile = CompanyProfile::current();
         $logo = $profile->getFirstMedia('logo');
@@ -56,6 +59,7 @@ class SettingsController extends Controller
             'notifications' => $notifications->toArray(),
             'codes' => $codes->toArray(),
             'billing' => $billing->toArray(),
+            'compliance' => $compliance->toArray(),
             'timezones' => $this->timezoneOptions(),
         ]);
     }
@@ -191,6 +195,18 @@ class SettingsController extends Controller
         activity()->useLog('settings')->causedBy($request->user())->log('Updated code format settings.');
 
         Inertia::flash('toast', ['type' => 'success', 'message' => 'Code formats saved.']);
+
+        return back();
+    }
+
+    public function updateCompliance(UpdateComplianceSettingsRequest $request, ComplianceSettings $settings): RedirectResponse
+    {
+        $settings->fill($request->validated());
+        $settings->save();
+
+        activity()->useLog('settings')->causedBy($request->user())->log('Updated compliance settings.');
+
+        Inertia::flash('toast', ['type' => 'success', 'message' => 'Compliance settings saved.']);
 
         return back();
     }

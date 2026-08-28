@@ -53,6 +53,10 @@ class MaintenanceController extends Controller
             if ($filters['priorities'] !== []) {
                 $query->whereIn('priority', $filters['priorities']);
             }
+
+            if ($filters['property_ids'] !== []) {
+                $query->whereHas('unit', fn (Builder $q) => $q->whereIn('property_id', $filters['property_ids']));
+            }
         }
 
         $sortColumn = in_array($sort, ['status', 'priority'], true) ? $sort : 'created_at';
@@ -78,6 +82,7 @@ class MaintenanceController extends Controller
                 'search' => $filters['search'],
                 'status' => $filters['statuses'],
                 'priority' => $filters['priorities'],
+                'property_id' => $filters['property_ids'],
                 'sort' => $sort,
                 'dir' => $dir,
                 'per_page' => $perPage,
@@ -93,7 +98,7 @@ class MaintenanceController extends Controller
     }
 
     /**
-     * @return array{tab: string, search: string, statuses: array<int, string>, priorities: array<int, string>}
+     * @return array{tab: string, search: string, statuses: array<int, string>, priorities: array<int, string>, property_ids: array<int, string>}
      */
     private function parseFilters(Request $request): array
     {
@@ -108,6 +113,7 @@ class MaintenanceController extends Controller
                 (array) $request->input('priority', []),
                 array_column(MaintenancePriority::cases(), 'value'),
             )),
+            'property_ids' => array_values(array_filter((array) $request->input('property_id', []))),
         ];
     }
 

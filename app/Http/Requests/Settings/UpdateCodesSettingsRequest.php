@@ -18,7 +18,7 @@ class UpdateCodesSettingsRequest extends FormRequest
     {
         $rules = [];
 
-        foreach (['property', 'unit', 'document', 'expense', 'income'] as $type) {
+        foreach (['property', 'unit', 'document', 'expense', 'income', 'lease', 'receipt'] as $type) {
             $rules["{$type}_prefix"] = ['required', 'string', 'max:20', 'alpha_dash'];
             $rules["{$type}_template"] = ['required', 'string', 'max:100'];
         }

@@ -41,7 +41,11 @@ class PortfolioMetrics
             $paymentsQuery->whereHas('lease.unit', fn (Builder $q) => $q->where('property_id', $propertyId));
         }
 
-        $payments = $paymentsQuery->get(['payment_date', 'amount']);
+        // Grouped once by month key up front, rather than re-filtering the
+        // full collection 12 times (isSameMonth+isSameYear per row per
+        // month) — same result, one Carbon format() per row instead of 24.
+        $paymentsByMonth = $paymentsQuery->get(['payment_date', 'amount'])
+            ->groupBy(fn (Payment $p) => $p->payment_date->format('Y-m'));
 
         $transactionsQuery = Transaction::query()->where('transaction_date', '>=', $since->toDateString());
 
@@ -49,16 +53,13 @@ class PortfolioMetrics
             $transactionsQuery->where('property_id', $propertyId);
         }
 
-        $transactions = $transactionsQuery->get(['transaction_date', 'amount', 'type']);
+        $transactionsByMonth = $transactionsQuery->get(['transaction_date', 'amount', 'type'])
+            ->groupBy(fn (Transaction $t) => $t->transaction_date->format('Y-m'));
 
-        return $months->map(function (Carbon $month) use ($payments, $transactions) {
-            $rent = $payments
-                ->filter(fn (Payment $p) => $p->payment_date->isSameMonth($month) && $p->payment_date->isSameYear($month))
-                ->sum('amount');
-
-            $monthTransactions = $transactions->filter(
-                fn (Transaction $t) => $t->transaction_date->isSameMonth($month) && $t->transaction_date->isSameYear($month),
-            );
+        return $months->map(function (Carbon $month) use ($paymentsByMonth, $transactionsByMonth) {
+            $key = $month->format('Y-m');
+            $rent = ($paymentsByMonth->get($key) ?? collect())->sum('amount');
+            $monthTransactions = $transactionsByMonth->get($key) ?? collect();
 
             $income = $rent + $monthTransactions->where('type', TransactionType::Income)->sum('amount');
             $expense = $monthTransactions->where('type', TransactionType::Expense)->sum('amount');
