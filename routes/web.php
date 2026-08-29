@@ -14,6 +14,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('dashboard', [DashboardController::class, 'show'])->name('dashboard');
 });
 
+require __DIR__.'/docs.php';
 require __DIR__.'/signing.php';
 require __DIR__.'/settings.php';
 require __DIR__.'/users.php';
