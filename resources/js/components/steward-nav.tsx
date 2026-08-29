@@ -3,7 +3,6 @@ import type { InertiaLinkProps } from '@inertiajs/react';
 import {
     Activity,
     BarChart3,
-    BookOpen,
     Building2,
     CreditCard,
     DoorOpen,
@@ -203,12 +202,6 @@ export function useStewardNavGroups(unreadMessagesCount = 0): NavGroup[] {
                         ? companySettings.edit('general')
                         : undefined,
                     activePrefix: '/company-settings',
-                },
-                {
-                    title: 'Docs',
-                    icon: BookOpen,
-                    href: '/docs',
-                    activePrefix: '/docs',
                 },
             ],
         },

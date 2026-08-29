@@ -1,5 +1,6 @@
 import { Link, usePage } from '@inertiajs/react';
 import {
+    BookOpen,
     Download,
     KeyRound,
     PanelLeftClose,
@@ -154,6 +155,35 @@ export function AppSidebar({
                     </Fragment>
                 ))}
             </nav>
+
+            <div
+                className={cn(
+                    'border-t border-border-soft p-2',
+                    collapsed && 'flex justify-center',
+                )}
+            >
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <Link
+                            href="/docs"
+                            className={cn(
+                                'flex items-center gap-2.5 rounded-[6px] p-2 text-text-tertiary hover:bg-secondary hover:text-foreground',
+                                collapsed ? 'justify-center' : 'w-full',
+                            )}
+                        >
+                            <BookOpen className="size-[15px]" />
+                            {!collapsed && (
+                                <span className="text-[12.5px] font-medium">
+                                    Docs
+                                </span>
+                            )}
+                        </Link>
+                    </TooltipTrigger>
+                    {collapsed && (
+                        <TooltipContent side="right">Docs</TooltipContent>
+                    )}
+                </Tooltip>
+            </div>
 
             {onToggleCollapse && (
                 <div
