@@ -22,7 +22,7 @@ export default function DocsLayout({
 
     return (
         <div className="flex min-h-svh bg-surface text-foreground">
-            <aside className="flex w-[260px] shrink-0 flex-col border-r border-border-soft bg-secondary/30">
+            <aside className="sticky top-0 flex h-svh w-[260px] shrink-0 flex-col border-r border-border-soft bg-secondary/30">
                 <Link
                     href="/docs"
                     className="flex items-center gap-2.5 border-b border-border-soft px-5 py-4"
