@@ -54,6 +54,32 @@ export default function DocsShow({ module, title, content }: Props) {
                         />
                     ),
                     li: (props) => <li className="mb-2 pl-1" {...props} />,
+                    table: (props) => (
+                        <div className="mb-4 overflow-x-auto">
+                            <table
+                                className="w-full min-w-[480px] border-collapse text-[13.5px]"
+                                {...props}
+                            />
+                        </div>
+                    ),
+                    th: (props) => (
+                        <th
+                            className="border-b border-border-soft px-3 py-2 text-left font-semibold text-foreground"
+                            {...props}
+                        />
+                    ),
+                    td: (props) => (
+                        <td
+                            className="border-b border-border-soft px-3 py-2 text-text-secondary"
+                            {...props}
+                        />
+                    ),
+                    pre: (props) => (
+                        <pre
+                            className="mb-4 overflow-x-auto rounded-[8px] bg-secondary p-3 text-[12.5px]"
+                            {...props}
+                        />
+                    ),
                     strong: (props) => (
                         <strong
                             className="font-semibold text-foreground"
