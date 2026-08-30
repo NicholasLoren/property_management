@@ -17,7 +17,7 @@ Click **Add request**.
 
 Select the affected **Unit**, give it a short **Title**, and a
 **Description** of what's wrong. Priority defaults to Medium and status to
-Open — everything else (assignee, cost, scheduling) can be filled in now or
+Open; everything else (assignee, cost, scheduling) can be filled in now or
 later as the work progresses.
 
 ![The form filled in with a unit, title, and description](/docs-screenshots/maintenance/maintenance-03-create-filled.png)

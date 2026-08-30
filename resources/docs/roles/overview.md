@@ -1,7 +1,7 @@
 ## Overview
 
-Roles define exactly what a user can see and do, permission by permission
-— not just a fixed set of tiers. Every user has exactly one role.
+Roles define exactly what a user can see and do, permission by permission,
+not just a fixed set of tiers. Every user has exactly one role.
 
 ## Viewing roles
 
@@ -19,7 +19,7 @@ should grant.
 Permissions are grouped by module (Documents, Expenses, Leases,
 Maintenance, Payments, Properties, Users, and so on), each with its own
 Add/Edit/Delete/View checkboxes so access can be scoped down to individual
-actions — for example, a role that can record payments but not delete them.
+actions: for example, a role that can record payments but not delete them.
 **Select all** grants everything at once.
 
 ![The form filled in with a name, description, and several permissions checked across different modules](/docs-screenshots/roles/roles-03-create-filled.png)
@@ -30,9 +30,9 @@ Click **Add role**.
 
 ## Editing or removing a role
 
-Click a role to change its name or permissions — changes apply immediately
+Click a role to change its name or permissions; changes apply immediately
 to everyone with that role. The trash icon moves it to the trash, reversible
 via **Undo** immediately after or from the Trash tab later. A role still
-assigned to any user can't be deleted at all — reassign those users to a
+assigned to any user can't be deleted at all; reassign those users to a
 different role first. A handful of built-in system roles can't be deleted
 regardless.

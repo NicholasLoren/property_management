@@ -1,6 +1,6 @@
 ## Overview
 
-Notifications are system-generated alerts addressed to you — rent
+Notifications are system-generated alerts addressed to you: rent
 reminders and similar automated notices. You don't create these yourself;
 they show up as events in the system warrant them.
 

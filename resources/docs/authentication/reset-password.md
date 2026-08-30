@@ -1,7 +1,7 @@
 ## Overview
 
 If you've forgotten your password, you can reset it yourself from the login
-page — no need to ask an administrator.
+page; no need to ask an administrator.
 
 ## Step 1: Request a reset link
 
@@ -15,7 +15,7 @@ Enter the email address on your account.
 ![The forgot password form filled in with an email address](/docs-screenshots/authentication/forgot-02-filled.png)
 
 Click **Email password reset link**. Whether or not that email exists in the
-system, you'll see the same confirmation — this avoids revealing which
+system, you'll see the same confirmation; this avoids revealing which
 emails are registered.
 
 ![The forgot password page after submitting, showing the message "We have emailed your password reset link."](/docs-screenshots/authentication/forgot-03-sent.png)
@@ -39,5 +39,5 @@ confirmation, and you can sign in with your new password right away.
 
 ![The login page after a successful reset, showing the message "Your password has been reset."](/docs-screenshots/authentication/reset-03-success.png)
 
-Reset links expire after a while and can only be used once — if yours has
+Reset links expire after a while and can only be used once; if yours has
 expired, just request a new one from the login page.

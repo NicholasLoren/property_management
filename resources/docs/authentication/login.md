@@ -1,6 +1,6 @@
 ## Overview
 
-The app is invite-only — there's no public sign-up. An administrator creates
+The app is invite-only; there's no public sign-up. An administrator creates
 your account from **Users → Invite user**, and you sign in from the login
 page at `/login` using the email and password you were given (or set during
 account setup).
@@ -16,8 +16,8 @@ and value proposition on the left, and the sign-in form on the right.
 
 Fill in:
 
-- **Email address** — the email your administrator invited you with.
-- **Password** — your account password.
+- **Email address**: the email your administrator invited you with.
+- **Password**: your account password.
 
 Optionally check **Remember me** to stay signed in on this device between
 browser sessions.
@@ -29,13 +29,13 @@ browser sessions.
 Click **Sign in**. What happens next depends on whether your credentials are
 correct:
 
-- **Incorrect email or password** — the form re-displays with an inline
+- **Incorrect email or password**: the form re-displays with an inline
   error under the email field: "These credentials do not match our records."
   Nothing is submitted until this is resolved.
 
   ![The login form showing a validation error: "These credentials do not match our records."](/docs-screenshots/authentication/login-03-invalid.png)
 
-- **Correct credentials** — you're redirected straight to your **Dashboard**,
+- **Correct credentials**: you're redirected straight to your **Dashboard**,
   which shows your portfolio's key numbers (net profit, income, expenses,
   arrears) and charts for the current period.
 
@@ -43,12 +43,12 @@ correct:
 
 If your account has two-factor authentication enabled, you'll be asked for a
 verification code after this step instead of going straight to the
-dashboard — see [Two-factor authentication](/docs/authentication/two-factor)
+dashboard; see [Two-factor authentication](/docs/authentication/two-factor)
 for that flow.
 
 ## Forgotten your password?
 
 Click **Forgot password?** next to the password field on the login form to
-start a password reset — see
+start a password reset; see
 [Resetting a forgotten password](/docs/authentication/reset-password) for
 the step-by-step.

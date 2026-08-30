@@ -2,8 +2,8 @@
 
 When you click **Send link** on a lease (see
 [Adding, signing, and managing leases](/docs/leases/overview)), the tenant
-gets a one-time link by email or SMS. It opens a public page — no login
-needed — matching the app's own branding.
+gets a one-time link by email or SMS. It opens a public page (no login
+needed) matching the app's own branding.
 
 ## What the tenant sees
 
@@ -16,7 +16,7 @@ They sign with a mouse, stylus, or finger, then click **Sign agreement**.
 
 ## After signing
 
-The page confirms the signature was recorded. The link is single-use — if
+The page confirms the signature was recorded. The link is single-use; if
 someone opens it again afterward (or it's opened a second time by
 mistake), they see the same confirmation instead of being able to sign
 again.

@@ -1,8 +1,8 @@
 ## Overview
 
 The search box at the top of every page (or the **⌘K** / **Ctrl+K**
-shortcut) searches across your whole portfolio at once — properties,
-units, leases, tenants, expenses, and more — not just the module you
+shortcut) searches across your whole portfolio at once (properties,
+units, leases, tenants, expenses, and more), not just the module you
 happen to be on.
 
 ## Using it

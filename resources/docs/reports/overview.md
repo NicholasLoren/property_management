@@ -11,7 +11,7 @@ Collection), **Balances** (Rent Arrears, Advance Payments), **Tenants**
 ## Running a report
 
 Click any report card. Set a date range and optionally filter by property
-or unit — each report has whatever filters make sense for it.
+or unit; each report has whatever filters make sense for it.
 
 ![The Income Report, showing a date range, property/unit filters, a total, and a row-by-row breakdown](/docs-screenshots/reports/reports-02-detail.png)
 

@@ -1,6 +1,6 @@
 ## Overview
 
-Income covers money coming in that isn't rent — deposit forfeitures, late
+Income covers money coming in that isn't rent: deposit forfeitures, late
 fees, and similar one-off receipts against a property. (Rent itself is
 tracked through [Payments](/docs/payments/overview).)
 

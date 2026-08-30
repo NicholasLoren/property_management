@@ -1,7 +1,7 @@
 ## Overview
 
 Financials is a portfolio-wide performance dashboard for a date range you
-choose — income, expenses, occupancy, and a per-property breakdown, all in
+choose: income, expenses, occupancy, and a per-property breakdown, all in
 one place.
 
 ## Using it

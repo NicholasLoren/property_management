@@ -1,7 +1,7 @@
 ## Overview
 
 **Account settings → Appearance** controls light/dark theme for your own
-browser — it's a per-device preference, not shared with anyone else on your
+browser; it's a per-device preference, not shared with anyone else on your
 team.
 
 ## Choosing a theme

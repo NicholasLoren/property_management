@@ -1,6 +1,6 @@
 ## Overview
 
-A handful of sensitive screens — **Account settings → Security** is one —
+A handful of sensitive screens (**Account settings → Security** is one)
 ask you to re-enter your password before showing them, even though you're
 already signed in. This protects those settings if you've stepped away from
 an unlocked device.
@@ -16,12 +16,12 @@ the page you asked for.
 
 Type your current account password and click **Confirm password**.
 
-- **Wrong password** — the form re-displays with "The provided password was
+- **Wrong password**: the form re-displays with "The provided password was
   incorrect." Nothing else happens until this is resolved.
 
   ![The confirm password page showing a validation error: "The provided password was incorrect."](/docs-screenshots/authentication/confirm-02-invalid.png)
 
-- **Correct password** — you're taken straight through to the page you
+- **Correct password**: you're taken straight through to the page you
   originally asked for.
 
   ![Account settings → Security, reached after confirming your password](/docs-screenshots/authentication/confirm-03-success.png)

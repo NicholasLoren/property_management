@@ -21,5 +21,5 @@ A "Profile updated." confirmation briefly appears in the bottom-right corner.
 ## Deleting your account
 
 Further down the same page is a **Delete account** section. This is
-permanent and removes all of your resources — you'll be asked to enter your
+permanent and removes all of your resources; you'll be asked to enter your
 password to confirm before anything is deleted.

@@ -1,6 +1,6 @@
 ## Overview
 
-Messages are in-app communication between team members — a personal note to
+Messages are in-app communication between team members: a personal note to
 one person, or a broadcast to everyone or a whole role. Messaging currently
 reaches other Users (managers, admins, landlords with accounts); tenants
 aren't message recipients yet.
@@ -25,7 +25,7 @@ Search for and select a recipient, then write a subject and message.
 ## Sending a broadcast
 
 If you have permission to broadcast, switch to **Broadcast**. Instead of a
-single recipient, choose an **Audience** — everyone, or a specific role.
+single recipient, choose an **Audience**: everyone, or a specific role.
 
 ![The New message form set to Broadcast, showing an Audience dropdown instead of a single recipient](/docs-screenshots/messages/messages-04-create-broadcast.png)
 

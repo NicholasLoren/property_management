@@ -1,7 +1,7 @@
 ## Overview
 
 **Settings** (in the Admin section of the sidebar) configures how the app
-works for your whole organization, not just for you — visible only to
+works for your whole organization, not just for you; visible only to
 users with the settings permission. It's split into eight sections down
 the left side.
 
@@ -23,7 +23,7 @@ report.
 
 ## SMS
 
-Connect an SMS provider (Africa's Talking) to send text messages — an API
+Connect an SMS provider (Africa's Talking) to send text messages: an API
 username, key, and sender ID, plus a way to send a test message to confirm
 it's working.
 
@@ -40,7 +40,7 @@ Rules around rent billing cycles and reminder timing.
 
 Every Property, Unit, Document, Expense, Income, Lease, and Receipt gets a
 unique code when created (the `PROP-D00304`, `DOC-2026-0005`-style codes
-you'll see throughout the app) — this is where their prefix and format
+you'll see throughout the app). This is where their prefix and format
 template are configured.
 
 ![The Codes section, listing a prefix and template for Properties, Units, Documents, Expenses, Income, Leases, and Receipts, each with a live preview](/docs-screenshots/company-settings/company-settings-06-codes.png)
@@ -49,15 +49,15 @@ template are configured.
 
 A single toggle: whether tenant and landlord forms ask for TIN,
 registration number, and identity-document type. This is purely for your
-own record-keeping — it's not a live connection to any government system.
+own record-keeping; it's not a live connection to any government system.
 
 ![The Compliance section, with a single "Enable compliance fields" toggle](/docs-screenshots/company-settings/company-settings-07-compliance.png)
 
 ## Trash & data
 
 How long deleted records stay recoverable in every module's Trash tab
-before a daily background job permanently erases them — 30 days by
-default. This is why "Undo" and the Trash tab are described as reversible
+before a daily background job permanently erases them (30 days by
+default). This is why "Undo" and the Trash tab are described as reversible
 throughout the rest of this documentation: reversible until this window
 closes, not forever.
 

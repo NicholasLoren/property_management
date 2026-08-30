@@ -26,5 +26,5 @@ Switch to the relevant tab and click **Add**. Every entry is just a name.
 The pencil icon renames an entry everywhere it's used; the trash icon
 moves it to the trash, reversible via **Undo** immediately after or from
 that tab's Trash view later. An entry still in use elsewhere can typically
-still be removed — existing records keep showing its name, but it won't be
+still be removed; existing records keep showing its name, but it won't be
 offered as a choice for new ones.

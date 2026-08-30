@@ -2,7 +2,7 @@
 
 Payments record rent actually received against a lease's scheduled due
 dates. Each lease automatically generates a schedule of rent periods when
-it's created — payments are recorded against those periods, not entered as
+it's created; payments are recorded against those periods, not entered as
 free-standing transactions.
 
 ## Viewing payments
@@ -24,7 +24,7 @@ Partial, and so on).
 
 ![The rent period checkboxes for the selected lease, listing several upcoming and overdue periods with amounts due](/docs-screenshots/payments/payments-03-create-periods.png)
 
-Check one or more periods — the **Amount** fills in automatically as their
+Check one or more periods; the **Amount** fills in automatically as their
 total, though you can adjust it (useful for partial payments). Set the
 payment date, method, and status, and optionally a reference number and a
 scanned receipt.
@@ -37,7 +37,7 @@ Click **Record payment**.
 
 ## Receipts
 
-Every recorded payment generates a numbered receipt automatically —
+Every recorded payment generates a numbered receipt automatically;
 tenants and landlords can find it from the payment's entry in a lease's or
 tenant's payment history.
 

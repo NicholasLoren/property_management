@@ -28,7 +28,7 @@ generating one.
 
 ![The form filled in with a unit, dates, rent, and one tenant added as a badge](/docs-screenshots/leases/leases-04-create-filled.png)
 
-Click **Add lease**. You're returned to the list — find your new lease
+Click **Add lease**. You're returned to the list; find your new lease
 there.
 
 ## Viewing a lease
@@ -41,10 +41,10 @@ agreement** generates a PDF of the lease terms at any time.
 
 ## Collecting signatures
 
-Each party — the landlord and every tenant — has their own **Sign now**
+Each party (the landlord and every tenant) has their own **Sign now**
 button, for witnessed in-person signing on the same device, or **Send link**
 (tenants only, when they have an email or phone on file) to let them sign
-remotely on their own device — see
+remotely on their own device; see
 [what a tenant sees when signing remotely](/docs/leases/tenant-signing).
 
 Click **Sign now** to open the signing dialog: confirm the signer's name,

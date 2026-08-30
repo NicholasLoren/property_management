@@ -1,6 +1,6 @@
 ## Overview
 
-A unit is a single rentable space — a whole standalone house, or one
+A unit is a single rentable space: a whole standalone house, or one
 apartment/room/shop inside a multi-unit property.
 
 ## Viewing units
@@ -22,7 +22,7 @@ From a property's Units tab, click **Add unit**.
 ![The empty Add unit form: Name, Unit type, Size, Status, Price, and Notes](/docs-screenshots/units/units-03-create-empty.png)
 
 Fill in a name, pick a **Unit type** (Studio, Single room, Apartment, and so
-on — configured in [Extras](/docs/extras/overview)), size, status, and
+on, configured in [Extras](/docs/extras/overview)), size, status, and
 price. **Notes** are internal-only and never shown to tenants.
 
 ![The form filled in with a name, size, price, and notes](/docs-screenshots/units/units-04-create-filled.png)
@@ -48,6 +48,6 @@ overwriting the old one, so past rent amounts stay on record.
 ## Removing a unit
 
 The trash icon on any units list moves a unit to the trash, the same
-reversible pattern as [Properties](/docs/properties/overview) — a toast with
+reversible pattern as [Properties](/docs/properties/overview): a toast with
 **Undo** appears immediately, and it can be permanently deleted later from
 the Trash tab.

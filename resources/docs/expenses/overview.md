@@ -1,6 +1,6 @@
 ## Overview
 
-Expenses track costs against a property — maintenance, management fees,
+Expenses track costs against a property: maintenance, management fees,
 taxes, insurance, and so on.
 
 ## Viewing expenses

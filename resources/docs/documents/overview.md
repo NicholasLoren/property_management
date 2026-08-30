@@ -1,7 +1,7 @@
 ## Overview
 
-Documents are files — contracts, certificates, receipts, anything else
-worth keeping on record — filed against a property, unit, tenant, or lease.
+Documents are files (contracts, certificates, receipts, anything else
+worth keeping on record) filed against a property, unit, tenant, or lease.
 
 ## Viewing documents
 
@@ -31,5 +31,5 @@ Click **Add document**.
 ## Editing or removing a document
 
 Click the pencil icon on any document's row to update its title, category,
-notes, or replace the file. The trash icon moves it to the trash — reversible
+notes, or replace the file. The trash icon moves it to the trash, reversible
 via **Undo** immediately after, or permanently deletable from the Trash tab.

@@ -1,6 +1,6 @@
 ## Overview
 
-Properties are the buildings and houses you manage on behalf of a landlord —
+Properties are the buildings and houses you manage on behalf of a landlord:
 either a **Standalone** house (one rentable unit) or a **Multi-Unit**
 building (several).
 
@@ -20,11 +20,11 @@ Click **Add property**.
 
 Fill in:
 
-- **Landlord** — a searchable dropdown; type to filter.
+- **Landlord**: a searchable dropdown; type to filter.
 
   ![The Landlord dropdown filtered to "Ardith", with one matching result highlighted](/docs-screenshots/properties/properties-03-create-landlord-search.png)
 
-- **Type** — Standalone or Multi-Unit.
+- **Type**: Standalone or Multi-Unit.
 - **Name**, **Address** (typing searches a real map and drops a pin you can
   fine-tune by dragging), optional **Description**, **Amenities**, and
   **Photos**.
@@ -32,11 +32,11 @@ Fill in:
 ![The form filled in with a landlord, name, address (with the map showing the matched location), and description](/docs-screenshots/properties/properties-04-create-filled.png)
 
 Click **Add property**. You're returned to the properties list with a
-confirmation — find your new property there (search for it by name if the
+confirmation; find your new property there (search for it by name if the
 list is long).
 
 A **Standalone** property automatically gets one unit created for it; a
-**Multi-Unit** property starts with none — add units yourself, covered in
+**Multi-Unit** property starts with none; add units yourself, covered in
 [Units](/docs/units/overview).
 
 ## Viewing a property
@@ -57,7 +57,7 @@ list. It's the same form as creating one, pre-filled.
 ## Removing a property
 
 Click the trash icon on a property's row to move it to the trash. This
-doesn't delete anything permanently — a confirmation with an **Undo** option
+doesn't delete anything permanently; a confirmation with an **Undo** option
 appears immediately, and the property can still be restored from the
 **Trash** tab afterwards.
 
